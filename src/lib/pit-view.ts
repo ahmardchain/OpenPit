@@ -3,6 +3,7 @@ import { q, type JoinRow, type PitRow } from "./db";
 /** JSON-safe shape sent to the browser. */
 export interface PitView {
   id: string;
+  mode: "chain" | "demo";
   creator: string;
   market: string;
   pool: `0x${string}`;
@@ -17,7 +18,7 @@ export interface PitView {
   thesis: string;
   intent: unknown;
   signature: string;
-  openTx: string;
+  openTx: string | null;
   startBlock: number;
   startMark: string;
   startTs: number;
@@ -33,12 +34,13 @@ export interface PitView {
 
 export interface JoinView {
   id: number;
+  mode: "chain" | "demo";
   wallet: string;
   side: "long" | "short";
   qty: string;
   entry: string;
   notional: string;
-  txHash: string;
+  txHash: string | null;
   blockNumber: number;
   ts: number;
   closeTx: string | null;
@@ -49,6 +51,7 @@ export interface JoinView {
 export function toView(p: PitRow, joins: JoinRow[]): PitView {
   return {
     id: p.id,
+    mode: p.mode ?? "chain",
     creator: p.creator,
     market: p.market,
     pool: p.pool as `0x${string}`,
@@ -76,6 +79,7 @@ export function toView(p: PitRow, joins: JoinRow[]): PitView {
     parentId: p.parent_id,
     joins: joins.map((j) => ({
       id: j.id,
+      mode: j.mode ?? "chain",
       wallet: j.wallet,
       side: j.side,
       qty: j.qty,
@@ -100,4 +104,9 @@ export async function loadPit(id: string): Promise<PitView | undefined> {
 
 export async function withJoins(rows: PitRow[]): Promise<PitView[]> {
   return Promise.all(rows.map(async (p) => toView(p, await q.joins(p.id))));
+}
+
+/** Display name: a demo player's chosen name, or a shortened wallet address. */
+export function who(p: { mode: "chain" | "demo"; wallet: string }): string {
+  return p.mode === "demo" ? p.wallet : `${p.wallet.slice(0, 6)}…${p.wallet.slice(-4)}`;
 }

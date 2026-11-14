@@ -1,238 +1,237 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { WalletButton } from "@/components/wallet-button";
-import { useAccount } from "wagmi";
 import type { PitView } from "@/lib/pit-view";
+import { who } from "@/lib/pit-view";
 import { useLivePit } from "@/lib/use-live-pit";
-import { useTrade } from "@/lib/use-trade";
+import { usePlayerName, validName } from "@/lib/player";
 import { fmtPct, fmtUsd } from "@/lib/scoring";
-import { addrUrl, short, txUrl } from "@/lib/chain";
-import { Card, Countdown, ErrorBox, Pill } from "@/components/ui";
+import { addrUrl, txUrl } from "@/lib/chain";
+import { clock, ErrorBox, useNow } from "@/components/ui";
 import { Button } from "@/components/ui/button";
-import { SpotlightCard, PulseDot } from "@/components/ui/effects";
-import { ExternalLink, Share2, RotateCcw, Link2 } from "lucide-react";
-import { Scoreboard, scoreJoins } from "@/components/scoreboard";
-import { MarginStatus } from "@/components/margin-status";
+import { Activity, CrowdSplit, PriceStrip, Standings, scoreJoins } from "@/components/scoreboard";
+import { WalletTicket } from "@/components/wallet-ticket";
 
 export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: string }) {
   const [pit, setPit] = useState(initial);
-  const { address } = useAccount();
-  const trade = useTrade();
   const live = useLivePit(pit);
-  const [apiError, setApiError] = useState<string | null>(null);
-  const [settling, setSettling] = useState(false);
-  const [lastTx, setLastTx] = useState<string | null>(null);
+  const now = useNow();
+  const [name, setName] = usePlayerName();
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [useWallet, setUseWallet] = useState(false);
 
   const refresh = useCallback(async () => {
     const r = await fetch(`/api/pits/${pit.id}`, { cache: "no-store" });
     if (r.ok) setPit(((await r.json()) as { pit: PitView }).pit);
   }, [pit.id]);
 
-  // Other people's joins land in the DB; pick them up every few seconds.
   useEffect(() => {
     const t = setInterval(refresh, 4000);
     return () => clearInterval(t);
   }, [refresh]);
 
-  const ended = Date.now() / 1000 >= pit.endTs;
-  const settle = useCallback(async () => {
-    if (pit.status === "settled" || settling) return;
-    setSettling(true);
-    try {
-      const r = await fetch(`/api/pits/${pit.id}/settle`, { method: "POST" });
-      const j = (await r.json()) as { pit?: PitView; error?: string };
-      if (r.ok && j.pit) setPit(j.pit);
-      else if (r.status !== 409) setApiError(j.error ?? "settle failed");
-    } finally {
-      setSettling(false);
-    }
-  }, [pit.id, pit.status, settling]);
+  const settled = pit.status === "settled";
+  const open = !settled && now < pit.endTs;
 
+  // Anyone viewing after the bell triggers settlement; the server makes it idempotent.
   useEffect(() => {
-    if (ended && pit.status === "live") settle();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ended, pit.status]);
+    if (settled || now < pit.endTs) return;
+    const t = setTimeout(async () => {
+      const r = await fetch(`/api/pits/${pit.id}/settle`, { method: "POST" });
+      if (r.ok) setPit(((await r.json()) as { pit: PitView }).pit);
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [settled, now >= pit.endTs, pit.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const market = { pool: pit.pool, marginBank: pit.marginBank, baseDecimals: pit.baseDecimals, tickSize: pit.tickSize, lotSize: pit.lotSize, minQuantity: pit.minQuantity };
-  const myJoin = address ? pit.joins.find((j) => j.wallet.toLowerCase() === address.toLowerCase()) : undefined;
-  const myPos = address ? live.positions[address.toLowerCase()] : undefined;
+  const me = pit.joins.find((j) => j.mode === "demo" && j.wallet.toLowerCase() === name.trim().toLowerCase());
+  const rows = scoreJoins(pit, live.mark);
+  const winner = settled ? rows[0] : undefined;
+  const mine = me ? rows.find((r) => r.id === me.id) : undefined;
+  const cap = fmtUsd(BigInt(Math.round(pit.capUsd * 1e6)) * 10n ** 12n, 0);
 
-  async function join(side: "long" | "short") {
-    setApiError(null);
+  async function joinPaper(side: "long" | "short") {
+    setError(null);
+    if (!validName(name)) return setError("Pick a name of 2 to 20 letters, digits, dots, dashes or underscores.");
+    setBusy(true);
     try {
-      const { hash } = await trade.openFor(market, side === "long", pit.capUsd);
-      setLastTx(hash);
-      const r = await fetch(`/api/pits/${pit.id}/join`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: address, side, txHash: hash }) });
+      const r = await fetch(`/api/pits/${pit.id}/join`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "demo", name: name.trim(), side }) });
       const j = (await r.json()) as { pit?: PitView; error?: string };
-      if (!r.ok || !j.pit) throw new Error(j.error ?? "join rejected");
+      if (!r.ok || !j.pit) throw new Error(j.error ?? "Could not join.");
       setPit(j.pit);
     } catch (e) {
-      if (!trade.error) setApiError((e as Error).message);
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
 
-  async function close() {
-    setApiError(null);
-    try {
-      const { hash } = await trade.closePosition(market);
-      setLastTx(hash);
-      if (myJoin) {
-        const r = await fetch(`/api/pits/${pit.id}/join`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: address, side: myJoin.side, txHash: hash, closeOf: myJoin.id }) });
-        if (r.ok) setPit(((await r.json()) as { pit: PitView }).pit);
-      }
-    } catch (e) {
-      if (!trade.error) setApiError((e as Error).message);
-    }
-  }
-
-  const fadeSide = pit.side === "long" ? "short" : "long";
-  const scored = scoreJoins(pit, live.mark);
-  const winner = scored[0];
   const pitUrl = `${appUrl}/pit/${pit.id}`;
-  const shareText =
-    pit.status === "settled"
-      ? `Pit settled on ${pit.market}-PERP: ${winner ? `${short(winner.wallet)} took it with ${fmtPct(winner.roc ?? 0)} return-on-cap` : "no joiners"}. Rematch? @DreamDEXSomnia #OpenPit`
-      : `I opened a ${pit.durationMin}-min ${pit.side.toUpperCase()} pit on ${pit.market}-PERP${pit.thesis ? `: "${pit.thesis}"` : ""}. Join me or fade me with a real order on @DreamDEXSomnia #OpenPit`;
+  const shareText = settled
+    ? `${winner ? `${who(winner)} won my ${pit.market}-PERP pit with ${fmtPct(winner.roc ?? 0)} on the cap` : `My ${pit.market}-PERP pit settled`}. Rematch? Prices from @DreamDEXSomnia`
+    : `I'm ${pit.side} ${pit.market}-PERP for the next ${clock(pit.endTs - now)}${pit.thesis ? `: ${pit.thesis}` : ""}. Join me or fade me, prices from @DreamDEXSomnia`;
   const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(pitUrl)}`;
   const rematchUrl = `/new?rematch=${pit.id}&market=${pit.market}&side=${pit.side}&duration=${pit.durationMin}&cap=${pit.capUsd}&thesis=${encodeURIComponent(pit.thesis)}`;
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold">{pit.market}-PERP</h1>
-            <Pill tone={pit.side === "long" ? "green" : "red"}>creator {pit.side.toUpperCase()}</Pill>
-            {pit.status === "live" ? <Pill tone="amber"><PulseDot className="mr-1" /> live</Pill> : <Pill>settled</Pill>}
+    <div className="space-y-8">
+      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-6">
+        <div className="min-w-0 space-y-1">
+          <div className="text-sm text-muted">
+            <Link href="/" className="hover:text-fg">
+              Pits
+            </Link>{" "}
+            / {pit.id}
           </div>
-          {pit.thesis && <p className="mt-1 text-fg/90">“{pit.thesis}”</p>}
-          <p className="mt-1 text-xs text-muted">
-            by{" "}
-            <a className="font-mono hover:underline" href={addrUrl(pit.creator)} target="_blank" rel="noreferrer">
-              {short(pit.creator)}
-            </a>{" "}
-            · cap {fmtUsd(BigInt(Math.round(pit.capUsd * 1e6)) * 10n ** 12n, 0)} per trader · {pit.durationMin} min ·{" "}
-            <a className="inline-flex items-center gap-0.5 hover:underline" href={txUrl(pit.openTx)} target="_blank" rel="noreferrer">
-              opening order <ExternalLink className="size-3" />
-            </a>{" "}
-            · intent signed (EIP-191)
+          <h1 className="text-3xl font-semibold">{pit.market}-PERP</h1>
+          <p className="text-sm text-muted">
+            {who({ mode: pit.mode, wallet: pit.creator })} called <span className={pit.side === "long" ? "text-long" : "text-fade"}>{pit.side}</span> for {pit.durationMin} minutes, {cap} cap per
+            player, {pit.mode === "demo" ? "paper positions" : "real orders on dreamDEX"}
           </p>
+          {pit.thesis && <p className="max-w-xl pt-1">{pit.thesis}</p>}
         </div>
-        <div className="text-right">
-          {pit.status === "live" ? (
-            <>
-              <Countdown endTs={pit.endTs} onZero={settle} />
-              <div className="text-[10px] uppercase tracking-wider text-muted">until the bell</div>
-            </>
-          ) : (
-            <div className="text-sm text-muted">🔔 bell rang · block {pit.endBlock}</div>
-          )}
+        <div className="sm:text-right">
+          <div className="label">{settled ? "Settled" : open ? "Bell in" : "Settling"}</div>
+          <div className="num text-3xl font-medium">{settled ? `#${pit.endBlock}` : clock(pit.endTs - now)}</div>
         </div>
-      </div>
+      </header>
 
-      {pit.status === "settled" && (
-        <SpotlightCard className="border-accent p-4">
-          {winner && winner.roc !== null ? (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="text-xs uppercase tracking-wider text-accent">Winner by return-on-cap</div>
-                <div className="display text-xl font-bold">
-                  🏆 <span className="font-mono">{short(winner.wallet)}</span> <span className={winner.roc >= 0 ? "text-long" : "text-fade"}>{fmtPct(winner.roc)}</span>
-                  <span className="ml-2 font-body text-sm text-muted">{winner.pnl !== null && fmtUsd(winner.pnl)} on a {fmtUsd(BigInt(Math.round(pit.capUsd * 1e6)) * 10n ** 12n, 0)} cap</span>
-                </div>
-              </div>
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0 space-y-8 lg:col-start-1 lg:row-start-1">
+          <PriceStrip pit={pit} live={live} />
+          <CrowdSplit pit={pit} />
+        </div>
+        <aside className="space-y-6 lg:sticky lg:top-6 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
+          {settled ? (
+            <div className="space-y-3 rounded-lg border border-line p-4">
+              <h2 className="font-semibold">Result</h2>
+              {winner && winner.roc !== null ? (
+                <p>
+                  {who(winner)} won with <span className={`num ${winner.roc >= 0 ? "text-long" : "text-fade"}`}>{fmtPct(winner.roc)}</span> on the {cap} cap
+                  {winner.pnl !== null && <span className="text-muted"> ({fmtUsd(winner.pnl)})</span>}.
+                </p>
+              ) : (
+                <p className="text-muted">Nobody joined this pit.</p>
+              )}
+              {mine && mine.roc !== null && (
+                <p className="text-sm text-muted">
+                  You finished {rows.indexOf(mine) + 1} of {rows.length} with <span className="num">{fmtPct(mine.roc)}</span>.
+                </p>
+              )}
               <div className="flex gap-2">
-                <Button asChild variant="secondary" size="sm">
+                <Button asChild>
+                  <Link href={rematchUrl}>Rematch</Link>
+                </Button>
+                <Button asChild variant="outline">
                   <a href={shareUrl} target="_blank" rel="noreferrer">
-                    <Share2 /> Share on X
+                    Post on X
                   </a>
                 </Button>
-                <Button asChild size="sm">
-                  <Link href={rematchUrl}>
-                    <RotateCcw /> Rematch
-                  </Link>
-                </Button>
               </div>
             </div>
           ) : (
-            <div>No scored joins.</div>
-          )}
-        </SpotlightCard>
-      )}
-
-      <Card>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-bold">Live card</h2>
-          <span className="text-[10px] uppercase tracking-wider text-muted">
-            {live.source === "reactivity" ? "● somnia reactivity" : live.source === "poll" ? "○ 2s poll" : "connecting…"} · {live.updates} updates
-          </span>
-        </div>
-        <Scoreboard pit={pit} live={live} me={address} />
-      </Card>
-
-      <Card className="space-y-3">
-        <MarginStatus marginBank={pit.marginBank} />
-        <ErrorBox error={trade.error} onClose={() => trade.setError(null)} />
-        {apiError && <ErrorBox error={new Error(apiError)} onClose={() => setApiError(null)} />}
-        {!address ? (
-          <WalletButton />
-        ) : pit.status === "live" && !ended ? (
-          <>
-            <div className="grid grid-cols-2 gap-3">
-              <Button variant="long" size="xl" className="h-24 flex-col gap-0" disabled={!!trade.busy} onClick={() => join(pit.side)}>
-                {pit.side === "long" ? "LONG" : "SHORT"}
-                <span className="text-xs font-semibold opacity-70">with the creator</span>
-              </Button>
-              <Button variant="fade" size="xl" className="h-24 flex-col gap-0" disabled={!!trade.busy} onClick={() => join(fadeSide)}>
-                FADE
-                <span className="text-xs font-semibold opacity-70">go {fadeSide}</span>
-              </Button>
-            </div>
-            <p className="text-center text-xs text-muted">{trade.busy ?? `Sizes a crossing IOC for up to ${pit.capUsd} USDso, clamped by getMaxPerpOrderSize. Your wallet signs; the server only verifies the hash.`}</p>
-          </>
-        ) : (
-          <div className="space-y-2">
-            {myPos && myPos.size !== 0n ? (
-              <Button variant="secondary" size="lg" className="w-full" disabled={!!trade.busy} onClick={close}>
-                {trade.busy ?? "Close your position (reduce-only IOC)"}
-              </Button>
-            ) : (
-              <p className="text-center text-sm text-muted">{myJoin ? "Your position on this market is flat." : "You did not trade in this pit."}</p>
-            )}
-            <div className="flex justify-center gap-2">
-              <Button asChild variant="outline" size="sm">
+            <div className="space-y-4 rounded-lg border border-line p-4">
+              <h2 className="font-semibold">{me ? "You're in" : "Join this pit"}</h2>
+              {me ? (
+                <p className="text-sm">
+                  <span className={me.side === "long" ? "text-long" : "text-fade"}>{me.side === "long" ? "Long" : "Short"}</span> from <span className="num">{fmtUsd(BigInt(me.entry))}</span>.{" "}
+                  {mine?.roc != null && (
+                    <>
+                      Right now <span className={`num ${mine.roc >= 0 ? "text-long" : "text-fade"}`}>{fmtPct(mine.roc)}</span>, rank {rows.indexOf(mine) + 1} of {rows.length}.
+                    </>
+                  )}
+                </p>
+              ) : open ? (
+                <>
+                  <label className="block space-y-1">
+                    <span className="label">Your name</span>
+                    <input
+                      id="player-name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      maxLength={20}
+                      placeholder="e.g. satoshi_fade"
+                      className="h-10 w-full rounded-md border border-line-strong px-3 outline-none focus:border-accent"
+                    />
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="long" disabled={busy} onClick={() => joinPaper("long")}>
+                      Long
+                    </Button>
+                    <Button variant="fade" disabled={busy} onClick={() => joinPaper("short")}>
+                      Short
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted">
+                    {pit.side === "long" ? "Long joins the creator, short fades them." : "Short joins the creator, long fades them."} You get a paper position worth {cap} at the current dreamDEX
+                    mark. No wallet needed.
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted">The bell has rung.</p>
+              )}
+              {error && <ErrorBox error={new Error(error)} onClose={() => setError(null)} />}
+              <Button asChild variant="outline" className="w-full">
                 <a href={shareUrl} target="_blank" rel="noreferrer">
-                  <Share2 /> Share on X
+                  Post on X
                 </a>
               </Button>
-              <Button asChild variant="outline" size="sm">
-                <Link href={rematchUrl}>
-                  <RotateCcw /> Rematch
-                </Link>
-              </Button>
             </div>
-          </div>
-        )}
-        {lastTx && (
-          <a href={txUrl(lastTx)} target="_blank" rel="noreferrer" className="block text-center text-xs text-accent underline">
-            your last tx ↗
-          </a>
-        )}
-      </Card>
+          )}
 
-      {pit.status === "live" && (
-        <div className="flex justify-center gap-2">
-          <Button asChild variant="outline" size="sm">
-            <a href={shareUrl} target="_blank" rel="noreferrer">
-              <Share2 /> Share on X
-            </a>
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => navigator.clipboard.writeText(pitUrl)}>
-            <Link2 /> Copy link
-          </Button>
+          <div className="space-y-3 border-t border-line pt-4">
+            <button onClick={() => setUseWallet((v) => !v)} className="text-sm text-accent hover:underline">
+              {useWallet ? "Hide wallet trading" : "Trade a real order with a wallet"}
+            </button>
+            {useWallet && <WalletTicket pit={pit} live={live} open={open} onPit={setPit} />}
+          </div>
+
+          <dl className="space-y-1.5 border-t border-line pt-4 text-xs text-muted">
+            <div className="flex justify-between gap-3">
+              <dt>Market pool</dt>
+              <dd>
+                <a href={addrUrl(pit.pool)} target="_blank" rel="noreferrer" className="num hover:text-accent">
+                  {who({ mode: "chain", wallet: pit.pool })}
+                </a>
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt>Opened at block</dt>
+              <dd className="num">{pit.startBlock}</dd>
+            </div>
+            {pit.openTx && (
+              <div className="flex justify-between gap-3">
+                <dt>Opening order</dt>
+                <dd>
+                  <a href={txUrl(pit.openTx)} target="_blank" rel="noreferrer" className="num hover:text-accent">
+                    {who({ mode: "chain", wallet: pit.openTx })}
+                  </a>
+                </dd>
+              </div>
+            )}
+            {pit.signature && (
+              <div className="flex justify-between gap-3">
+                <dt>Creator signature</dt>
+                <dd className="num" title={pit.signature}>
+                  {who({ mode: "chain", wallet: pit.signature })}
+                </dd>
+              </div>
+            )}
+          </dl>
+        </aside>
+        <div className="min-w-0 space-y-8 lg:col-start-1 lg:row-start-2">
+          <section className="space-y-2">
+            <h2 className="text-lg font-semibold">Standings</h2>
+            <Standings pit={pit} rows={rows} me={me?.wallet} />
+            <p className="text-xs text-muted">Return is PnL divided by the {cap} cap, the same for every player, so position size does not decide the winner.</p>
+          </section>
+          <section className="space-y-2">
+            <h2 className="text-lg font-semibold">Activity</h2>
+            <Activity pit={pit} />
+          </section>
         </div>
-      )}
+
+      </div>
     </div>
   );
 }

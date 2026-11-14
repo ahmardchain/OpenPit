@@ -7,8 +7,8 @@
  * position — so the card re-scores on the exact block that moved it, with no follow-up round trips.
  * Fallback: if the watch fails to open, a 2s poll runs the same reads over the SDK's client.
  */
-import { useEffect, useRef, useState } from "react";
-import { decodeFunctionResult, encodeFunctionData, type Address, type Hex } from "viem";
+import { useEffect, useState } from "react";
+import { decodeFunctionResult, encodeFunctionData, isAddress, type Address, type Hex } from "viem";
 import { createReactivity, unwrap, type ReactivityNotification } from "@somnia-chain/markets-sdk/reactivity";
 import { marginBankReadAbi, perpPoolReadAbi } from "./abi";
 import { getExchange } from "./markets";
@@ -26,10 +26,9 @@ export interface LiveState {
 
 export function useLivePit(pit: PitView | null) {
   const [state, setState] = useState<LiveState>({ mark: null, markOk: false, positions: {}, block: null, source: "connecting", updates: 0, lastEvent: null });
-  const wallets = pit ? Array.from(new Set(pit.joins.map((j) => j.wallet.toLowerCase()))) : [];
+  // Only on-chain players have a MarginBank position to read; paper players are scored from the mark alone.
+  const wallets = pit ? Array.from(new Set(pit.joins.filter((j) => j.mode === "chain" && isAddress(j.wallet)).map((j) => j.wallet.toLowerCase()))) : [];
   const walletsKey = wallets.join(",");
-  const stateRef = useRef(state);
-  stateRef.current = state;
 
   useEffect(() => {
     if (!pit) return;

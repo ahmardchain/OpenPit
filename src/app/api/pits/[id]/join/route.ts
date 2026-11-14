@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import type { Address, Hash } from "viem";
 import { q } from "@/lib/db";
 import { loadPit } from "@/lib/pit-view";
-import { serverClient, verifyOrderTx } from "@/lib/server-chain";
+import { readMark, serverClient, verifyOrderTx } from "@/lib/server-chain";
+import { capRaw as toCapRaw, cleanName } from "@/lib/markets-server";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,36 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { id } = await ctx.params;
   const pit = await q.getPit(id);
   if (!pit) return NextResponse.json({ error: "not found" }, { status: 404 });
-  const { wallet, side, txHash, closeOf } = (await req.json()) as { wallet: Address; side: "long" | "short"; txHash: Hash; closeOf?: number };
+  const body = (await req.json()) as { mode?: "demo"; name?: string; wallet: Address; side: "long" | "short"; txHash: Hash; closeOf?: number };
+
+  // Paper join: no wallet. The position opens at the live on-chain mark at the current head block.
+  if (body.mode === "demo") {
+    const name = cleanName(body.name);
+    if (!name) return NextResponse.json({ error: "Pick a name of 2 to 20 letters, digits, dots, dashes or underscores." }, { status: 400 });
+    if (pit.status !== "live" || Date.now() / 1000 >= pit.end_ts) return NextResponse.json({ error: "The bell has rung. This pit is closed to new players." }, { status: 409 });
+    if (body.side !== "long" && body.side !== "short") return NextResponse.json({ error: "Choose long or short." }, { status: 400 });
+    if (await q.joinByPlayer(id, name)) return NextResponse.json({ error: `${name} is already in this pit. Pick another name.` }, { status: 409 });
+    const head = await serverClient.getBlock();
+    const mark = await readMark(pit.pool as Address, head.number);
+    if (!mark.ok) return NextResponse.json({ error: "The mark price is stale right now. Try again in a few seconds." }, { status: 503 });
+    const oneBase = 10n ** BigInt(pit.base_decimals);
+    const qty = (toCapRaw(pit.cap_usd) * oneBase) / mark.price;
+    await q.insertJoin({
+      pit_id: id,
+      mode: "demo",
+      wallet: name,
+      side: body.side,
+      qty: qty.toString(),
+      entry: mark.price.toString(),
+      notional: ((qty * mark.price) / oneBase).toString(),
+      tx_hash: null,
+      block_number: Number(head.number),
+      ts: Number(head.timestamp),
+    });
+    return NextResponse.json({ pit: await loadPit(id) });
+  }
+
+  const { wallet, side, txHash, closeOf } = body;
   if (!wallet || !txHash) return NextResponse.json({ error: "missing fields" }, { status: 400 });
 
   // A "close" is a reduce order recorded against an existing join (after the bell).
@@ -58,6 +88,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   await q.insertJoin({
     pit_id: id,
+    mode: "chain",
     wallet,
     side,
     qty: qty.toString(),

@@ -1,7 +1,6 @@
 import { ImageResponse } from "next/og";
-import { loadPit } from "@/lib/pit-view";
+import { loadPit, who } from "@/lib/pit-view";
 import { fmtPct, fmtUsd, returnOnCapBps, sessionPnl } from "@/lib/scoring";
-import { short } from "@/lib/chain";
 import { readMark } from "@/lib/server-chain";
 
 export const dynamic = "force-dynamic";
@@ -58,7 +57,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
           {top ? (
             <>
               <span>{settled ? "Winner" : "Leading"}</span>
-              <span style={{ marginLeft: 16, fontFamily: "monospace" }}>{short(top.wallet)}</span>
+              <span style={{ marginLeft: 16 }}>{who(top)}</span>
               <span style={{ marginLeft: 16, color: top.side === pit.side ? "#0e9f6e" : "#e11d48" }}>{top.side === pit.side ? top.side.toUpperCase() : "FADE"}</span>
               <span style={{ marginLeft: "auto", paddingLeft: 24, fontWeight: 800, color: top.roc >= 0 ? "#0e9f6e" : "#e11d48" }}>{`${fmtPct(top.roc)} return on cap`}</span>
             </>
@@ -66,7 +65,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
             <span>No joins yet — be the first to fade.</span>
           )}
         </div>
-        <div style={{ display: "flex", marginTop: 18, fontSize: 22, color: "#5b6b8a" }}>{`Real orders on dreamDEX perps · Somnia Hideki testnet · ${pit.durationMin}-minute pit`}</div>
+        <div style={{ display: "flex", marginTop: 18, fontSize: 22, color: "#5b6b8a" }}>{`${pit.mode === "demo" ? "Paper positions at live dreamDEX prices" : "Real orders on dreamDEX perps"}, Somnia Hideki testnet, ${pit.durationMin}-minute pit`}</div>
       </div>
     ),
     { width: 1200, height: 630, headers: { "cache-control": "public, max-age=15" } },

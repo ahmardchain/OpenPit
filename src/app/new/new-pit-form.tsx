@@ -32,7 +32,7 @@ export default function NewPitForm() {
   const parentId = sp.get("rematch") ?? undefined;
   const [step, setStep] = useState<Step>("form");
   const [openTx, setOpenTx] = useState<string | null>(null);
-  const [preview, setPreview] = useState<Awaited<ReturnType<typeof previewSize>> | null>(null);
+  const [quote, setPreview] = useState<Awaited<ReturnType<typeof previewSize>> | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,9 +42,10 @@ export default function NewPitForm() {
       .catch((e) => setApiError(String(e)));
   }, []);
   const market = useMemo(() => markets?.find((m) => m.symbol === symbol), [markets, symbol]);
+  const preview = market && address ? quote : null;
 
   useEffect(() => {
-    if (!market || !address) return setPreview(null);
+    if (!market || !address) return;
     let stop = false;
     previewSize(market, address, side === "long", cap)
       .then((p) => !stop && setPreview(p))
@@ -96,12 +97,11 @@ export default function NewPitForm() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-bold">Open a pit {parentId && <span className="font-body text-sm font-normal text-muted">(rematch)</span>}</h1>
-      <p className="text-sm text-muted">You sign the pit intent, then place a real opening order from your wallet. The pit goes live only after that order is confirmed and verified on-chain.</p>
+      <p className="text-sm text-muted">You sign the pit details, then place a real opening order from your wallet. The pit opens once that order is confirmed on-chain.</p>
 
       <Card className="space-y-4">
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">Market</label>
+          <label className="mb-1 block label">Market</label>
           {!markets ? (
             <Spinner />
           ) : (
@@ -117,7 +117,7 @@ export default function NewPitForm() {
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">Your call</label>
+          <label className="mb-1 block label">Your call</label>
           <div className="grid grid-cols-2 gap-2">
             <button onClick={() => setSide("long")} className={cn("rounded-2xl border py-4 text-xl font-black transition-all active:scale-[0.98]", side === "long" ? "border-long bg-long text-accent-ink" : "border-line text-muted hover:border-muted")}>
               LONG
@@ -131,7 +131,7 @@ export default function NewPitForm() {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">Duration</label>
+            <label className="mb-1 block label">Duration</label>
             <div className="flex gap-2">
               {[5, 15, 30].map((d) => (
                 <button key={d} onClick={() => setDuration(d)} className={cn("flex-1 rounded-xl border py-1.5 text-sm font-semibold transition-all active:scale-95", duration === d ? "border-accent bg-surface-2 text-accent" : "border-line hover:border-muted")}>
@@ -141,13 +141,13 @@ export default function NewPitForm() {
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">Cap per trader (USDso)</label>
+            <label className="mb-1 block label">Cap per trader (USDso)</label>
             <input type="number" min={1} max={100000} value={cap} onChange={(e) => setCap(Number(e.target.value))} className="w-full rounded-xl border border-line bg-bg px-3 py-2 tabular outline-none focus:border-accent" />
           </div>
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">Thesis (optional, one line)</label>
+          <label className="mb-1 block label">Thesis (optional, one line)</label>
           <input maxLength={140} value={thesis} onChange={(e) => setThesis(e.target.value)} placeholder="e.g. Funding flipped negative; shorts are crowded into the close" className="w-full rounded-xl border border-line bg-bg px-3 py-2 outline-none focus:border-accent" />
         </div>
 
@@ -157,7 +157,7 @@ export default function NewPitForm() {
           <div className="rounded-xl border border-line bg-bg p-3 text-xs text-muted">
             Opening order: <b className="text-fg">{side.toUpperCase()}</b> {fmtQty(preview.qty, market.baseDecimals)} {market.symbol} IOC (≈{fmtUsd((preview.qty * preview.mark) / 10n ** BigInt(market.baseDecimals))} of {fmtUsd(capRaw, 0)} cap) at mark {fmtUsd(preview.mark)}
             {!preview.priceable && <span className="ml-2 text-fade">mark price stale</span>}
-            {preview.belowMin && <span className="ml-2 text-fade">below this market&apos;s minimum size — raise the cap</span>}
+            {preview.belowMin && <span className="ml-2 text-fade">below this market&apos;s minimum size, raise the cap</span>}
             {preview.priceable && !preview.belowMin && !preview.placeable && <span className="ml-2 text-fade">not placeable: {preview.limitedBy}</span>}
           </div>
         )}

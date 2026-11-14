@@ -1,36 +1,34 @@
 @import "tailwindcss";
 
-/* Design tokens: white and blue, flat colours only, no gradients.
-   Neutrals lean slightly blue so they sit with the accent; long/fade green and red stay separate from it. */
+/* OpenPit tokens. Layout concept: an exchange screen, not a landing page. Tables and one order ticket,
+   hairline rules instead of cards, a single blue for actions, green and red only for long and short. */
 :root {
   color-scheme: light;
   --bg: #ffffff;
-  --surface: #f5f8ff;
-  --surface-2: #eaf1ff;
-  --line: #d5e1f8;
-  --fg: #0b1a3a;
-  --muted: #5b6b8a;
+  --surface: #f5f7fb;
+  --line: #e2e7f0;
+  --line-strong: #c7d0e0;
+  --fg: #0c1630;
+  --muted: #5d6882;
   --accent: #1f5eff;
   --accent-ink: #ffffff;
-  --long: #0e9f6e;
-  --fade: #e11d48;
-  --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --long: #0a8a57;
+  --fade: #d02f4b;
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
   --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
   --color-fg: var(--fg);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-long: var(--long);
   --color-fade: var(--fade);
-  --font-display: var(--font-display);
   --font-body: var(--font-body);
   --font-mono: var(--font-mono);
 }
@@ -39,17 +37,31 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
 }
 
-h1, h2, h3, .display {
-  font-family: var(--font-display);
-  letter-spacing: -0.01em;
+h1, h2, h3 {
   text-wrap: balance;
+  letter-spacing: -0.01em;
 }
 
-.tabular, .font-mono {
+.num {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
