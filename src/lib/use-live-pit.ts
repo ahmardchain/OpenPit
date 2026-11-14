@@ -87,7 +87,10 @@ export function useLivePit(pit: PitView | null) {
         const reactivity = createReactivity(ex.client);
         const watch = unwrap(
           await reactivity.watch({
-            eventContractSources: [pool, st.oracle as Address, bank],
+            // The pool (fills/funding on this market) and its mark oracle. MarginBank is deliberately left out:
+            // it emits for every market on the venue, and the positions we need are already in ethCalls.
+            eventContractSources: [pool, st.oracle as Address],
+            onlyPushChanges: true,
             ethCalls: calls,
             onData: (n: ReactivityNotification) => {
               const r = n.result;

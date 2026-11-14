@@ -47,7 +47,7 @@ export function Scoreboard({ pit, live, me }: { pit: PitView; live: LiveState; m
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-800">
+      <div className="overflow-x-auto rounded-2xl border border-zinc-800">
         <table className="w-full text-sm">
           <thead className="bg-zinc-900 text-left text-xs uppercase text-zinc-500">
             <tr>
@@ -56,7 +56,7 @@ export function Scoreboard({ pit, live, me }: { pit: PitView; live: LiveState; m
               <th className="px-3 py-2">Side</th>
               <th className="hidden px-3 py-2 text-right sm:table-cell">Entry</th>
               <th className="px-3 py-2 text-right">PnL</th>
-              <th className="px-3 py-2 text-right">Return on cap</th>
+              <th className="px-3 py-2 text-right" title="Return on cap">RoC</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800">
