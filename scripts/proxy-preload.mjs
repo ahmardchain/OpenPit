@@ -7,11 +7,11 @@ const proxy = process.env.HTTPS_PROXY || process.env.https_proxy;
 if (proxy) {
   const agent = new HttpsProxyAgent(proxy);
   const orig = https.request;
-  (https as any).request = function (opts: any, ...rest: any[]) {
+  https.request = function (opts, ...rest) {
     if (opts && typeof opts === "object" && opts.createConnection && !opts.agent) {
       delete opts.createConnection;
       opts.agent = agent;
     }
-    return (orig as any).call(this, opts, ...rest);
+    return orig.call(this, opts, ...rest);
   };
 }

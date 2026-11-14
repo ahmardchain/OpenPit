@@ -9,7 +9,7 @@
  */
 import "dotenv/config";
 import { appendFileSync } from "node:fs";
-import { formatUnits, parseUnits } from "viem";
+import { formatUnits, parseUnits, type Chain } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { ORDER_TYPE, SOMNIA_HIDEKI_TESTNET_ADDRESSES, SomniaMarkets } from "@somnia-chain/markets-sdk";
 import { hidekiTestnet } from "@somnia-chain/markets-sdk/chains";
@@ -24,7 +24,7 @@ const tx = (h: string) => `${EXPLORER}/tx/${h}`;
 const evidence: string[] = [];
 const log = (s: string) => { console.log(s); evidence.push(s); };
 
-const m = new SomniaMarkets({ chain: hidekiTestnet, indexerUrl: INDEXER, addresses: SOMNIA_HIDEKI_TESTNET_ADDRESSES, privateKey: key });
+const m = new SomniaMarkets({ chain: hidekiTestnet as unknown as Chain, indexerUrl: INDEXER, addresses: SOMNIA_HIDEKI_TESTNET_ADDRESSES, privateKey: key });
 
 async function main() {
   log(`\n## Smoke run ${new Date().toISOString()} — wallet ${me}`);

@@ -1,6 +1,7 @@
+import type { Chain } from "viem";
 import { SOMNIA_HIDEKI_TESTNET_ADDRESSES, SomniaMarkets } from "@somnia-chain/markets-sdk";
 import { hidekiTestnet } from "@somnia-chain/markets-sdk/chains";
-const m = new SomniaMarkets({ chain: hidekiTestnet, indexerUrl: "https://hideki-dev.smk.somnia.host/v1/graphql", addresses: SOMNIA_HIDEKI_TESTNET_ADDRESSES });
+const m = new SomniaMarkets({ chain: hidekiTestnet as unknown as Chain, indexerUrl: "https://hideki-dev.smk.somnia.host/v1/graphql", addresses: SOMNIA_HIDEKI_TESTNET_ADDRESSES });
 const perps = await m.client.listPerpMarkets({ limit: 200 } as any);
 const j = (x: any) => JSON.stringify(x, (_, v) => typeof v === "bigint" ? v.toString() : v);
 console.log(perps.map(p => p.baseSymbol).join(" "));
