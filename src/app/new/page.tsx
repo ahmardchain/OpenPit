@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
@@ -14,7 +14,7 @@ import { MarginStatus } from "@/components/margin-status";
 
 type Step = "form" | "signing" | "ordering" | "confirming" | "registering" | "done";
 
-export default function NewPit() {
+function NewPitForm() {
   const router = useRouter();
   const sp = useSearchParams();
   const { address } = useAccount();
@@ -185,5 +185,13 @@ export default function NewPit() {
         )}
       </Card>
     </div>
+  );
+}
+
+export default function NewPit() {
+  return (
+    <Suspense fallback={<div className="p-6 text-zinc-400">Loading…</div>}>
+      <NewPitForm />
+    </Suspense>
   );
 }
