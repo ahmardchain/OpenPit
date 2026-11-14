@@ -39,9 +39,20 @@ async function main() {
   const eth = (await m.client.listPerpMarkets({ baseSymbol: "ETH" }))[0];
   const el = await m.client.getPerpVoucherEligibility(btc.marginBank, me);
   if (el.eligible) {
-    const r = await m.trader.claimPerpVoucher({ marginBank: btc.marginBank });
-    log(`- Claimed paper USDso voucher: ${tx(r.hash)}`);
+    try {
+      const r = await m.trader.claimPerpVoucher({ marginBank: btc.marginBank });
+      log(`- Claimed paper USDso voucher: ${tx(r.hash)}`);
+    } catch (e: any) {
+      log(`- Voucher claim reverted (${(e?.shortMessage ?? e?.message ?? "").slice(0, 80)}); falling back to wallet USDso`);
+    }
   } else log(`- Voucher: not eligible (${el.reason})`);
+  // Faucet USDso lands in the wallet; perps margin must be in the MarginBank. Deposit whatever is there.
+  const walletUsd = await m.client.getErc20Balance(btc.quoteToken as `0x${string}`, me);
+  const pre = await m.client.getMarginAccount(btc.marginBank, me);
+  if (walletUsd > 0n && pre.equity <= 0n) {
+    const d = await m.trader.depositMargin({ marginBank: btc.marginBank, amount: walletUsd, collateral: btc.quoteToken as `0x${string}`, autoApprove: true });
+    log(`- Deposited ${formatUnits(walletUsd, 18)} USDso into MarginBank: ${tx(d.hash)}`);
+  }
   const acct = await m.client.getMarginAccount(btc.marginBank, me);
   log(`- Margin account: ${j(acct)}`);
 
