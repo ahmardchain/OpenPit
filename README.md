@@ -165,6 +165,19 @@ watch cannot open (no WS, unsupported node) the hook falls back to a **2-second 
 block number, and the card says which source it is on. The Solidity flavour (`subscribe` + a `SomniaEventHandler`) is
 not used yet — see future work.
 
+## Demo video
+
+`scripts/record-demo.mjs` records the demo straight from the running app: it opens a paper pit, has players join
+through the public API at the live mark, then walks the real on-chain pit, its opening order on the Somnia explorer and
+the share card. Captions come from `demo-src/narration.json`; drop one voice clip per scene into
+`demo-src/voice/<scene id>.mp3` and the recorder times each scene to its clip and mixes the voiceover in.
+
+```bash
+BASE_URL=https://your-worker.workers.dev node scripts/record-demo.mjs
+```
+
+Output: `demo/openpit-demo.mp4` (1280x720) and `demo/openpit-demo.srt`.
+
 ## X posts
 
 - _(post 1 — pit opened)_

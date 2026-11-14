@@ -1,0 +1,15 @@
+{
+  "voice": "ElevenLabs: Aabo - Engaging Confident Explainer Voice (KeU8nqWFDbaoi0QVUjD3), model eleven_v4",
+  "scenes": [
+    { "id": "01-intro", "text": "This is OpenPit. A pit is a five to thirty minute trading round on one dreamDEX perp market. Someone makes a call, and everyone else either joins them, or fades them." },
+    { "id": "02-create", "text": "Opening a pit takes one form. Pick a market, a direction, and a length. No wallet needed: your position opens at the live dreamDEX mark, read on-chain." },
+    { "id": "03-reactivity", "text": "The live card runs on Somnia Reactivity. Every event arrives with same-block eth_call results, so price and standings update the moment the chain moves." },
+    { "id": "04-crowd", "text": "Share the link, and players pile in. Each one goes long with the caller, or short against them, and the crowd bar moves as they arrive." },
+    { "id": "05-scoring", "text": "Players are ranked by return on the cap: profit divided by the same cap for everyone. A bigger account can't buy the win." },
+    { "id": "06-real-pit", "text": "This pit ran with real orders from two wallets on Somnia testnet. At the bell, the mark is frozen at that block, and the winner is crowned." },
+    { "id": "07-verify", "text": "Every real order is a dreamDEX PerpPool trade, and the server re-verifies each transaction hash from its receipt before it counts." },
+    { "id": "08-explorer", "text": "Here's the opening order on the Somnia explorer: a filled order on the BTC perp pool." },
+    { "id": "09-share", "text": "Each pit gets a share card for X that tags dreamDEX, with a one-click rematch." },
+    { "id": "10-close", "text": "OpenPit. Social, time-boxed trading on dreamDEX perps. Open source, and running on Cloudflare Workers." }
+  ]
+}
