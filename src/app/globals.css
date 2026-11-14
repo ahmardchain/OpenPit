@@ -1,19 +1,19 @@
 @import "tailwindcss";
 
-/* Design tokens — flat colours only, no gradients.
-   Neutrals carry a warm bias toward the amber accent; semantic green/red are separate from the accent. */
+/* Design tokens: white and blue, flat colours only, no gradients.
+   Neutrals lean slightly blue so they sit with the accent; long/fade green and red stay separate from it. */
 :root {
-  color-scheme: dark;
-  --bg: #0e0d0b;
-  --surface: #161411;
-  --surface-2: #1e1b17;
-  --line: #2a2622;
-  --fg: #f3efe8;
-  --muted: #9a928a;
-  --accent: #f5a524;
-  --accent-ink: #1a1206;
-  --long: #34d399;
-  --fade: #fb7185;
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #f5f8ff;
+  --surface-2: #eaf1ff;
+  --line: #d5e1f8;
+  --fg: #0b1a3a;
+  --muted: #5b6b8a;
+  --accent: #1f5eff;
+  --accent-ink: #ffffff;
+  --long: #0e9f6e;
+  --fade: #e11d48;
   --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;

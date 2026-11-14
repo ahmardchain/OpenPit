@@ -5,6 +5,7 @@ import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 initOpenNextCloudflareForDev();
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   turbopack: {
     // Coinbase/Base wallet SDKs are pulled in by wagmi's connector list but not offered here; their optional
     // sub-dependencies cannot be bundled for Cloudflare Workers, so they resolve to an empty module.

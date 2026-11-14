@@ -1,4 +1,4 @@
-/** OpenPit mark: an amber arena ring with the bell-notch on top and the long/fade fork inside. Flat, single accent. */
+/** OpenPit mark: a blue tile with an arena ring with the bell-notch on top and the long/fade fork inside. Flat, single accent. */
 export function LogoMark({ size = 28, className }: { size?: number; className?: string }) {
   return (
     <svg viewBox="0 0 64 64" width={size} height={size} className={className} aria-hidden>
