@@ -69,15 +69,27 @@ async function closeAll(m: SomniaMarkets, market: Market) {
   return r.hash;
 }
 
-async function ensureVoucher(m: SomniaMarkets, marginBank: Address) {
+async function ensureMargin(m: SomniaMarkets, market: Market) {
   const me = m.walletAddress!;
-  const el = await m.client.getPerpVoucherEligibility(marginBank, me);
+  const el = await m.client.getPerpVoucherEligibility(market.marginBank, me);
   if (el.eligible) {
-    const r = await m.trader.claimPerpVoucher({ marginBank });
-    log(`- ${me} claimed paper USDso: ${tx(r.hash)}`);
+    try {
+      const r = await m.trader.claimPerpVoucher({ marginBank: market.marginBank });
+      log(`- ${me} claimed paper USDso: ${tx(r.hash)}`);
+    } catch (e: any) {
+      log(`- ${me} voucher claim reverted (${(e?.shortMessage ?? e?.message ?? "").slice(0, 60)}); using wallet USDso`);
+    }
   }
-  const acct = await m.client.getMarginAccount(marginBank, me);
+  const pre = await m.client.getMarginAccount(market.marginBank, me);
+  const quote = (await m.client.listPerpMarkets({ baseSymbol: market.symbol }))[0].quoteToken as Address;
+  const walletUsd = await m.client.getErc20Balance(quote, me);
+  if (pre.equity <= 0n && walletUsd > 0n) {
+    const d = await m.trader.depositMargin({ marginBank: market.marginBank, amount: walletUsd, collateral: quote, autoApprove: true });
+    log(`- ${me} deposited ${formatUnits(walletUsd, 18)} USDso into MarginBank: ${tx(d.hash)}`);
+  }
+  const acct = await m.client.getMarginAccount(market.marginBank, me);
   log(`- ${me} perps equity ${formatUnits(acct.equity, 18)} USDso, STT ${formatUnits(await m.client.getNativeBalance(me), 18)}`);
+  if (acct.equity <= 0n) throw new Error(`${me} has no margin — fund it (Telegram /faucet) first`);
 }
 
 async function main() {
@@ -87,8 +99,8 @@ async function main() {
   const { markets } = await api<{ markets: Market[] }>("/api/markets");
   const market = markets.find((x) => x.symbol === MARKET)!;
   const m1 = mk(k1), m2 = mk(k2);
-  await ensureVoucher(m1, market.marginBank);
-  await ensureVoucher(m2, market.marginBank);
+  await ensureMargin(m1, market);
+  await ensureMargin(m2, market);
 
   // 1. Creator: sign intent, open, register.
   const side = "long" as const;

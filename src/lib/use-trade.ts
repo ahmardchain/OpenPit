@@ -131,5 +131,27 @@ export function useTrade() {
     [ensureChain],
   );
 
-  return { address, chainId, wrongChain: !!address && chainId !== CHAIN_ID, busy, error, setError, openFor, closePosition, claimVoucher };
+  /** Move the wallet's USDso into the MarginBank (approve + deposit). */
+  const depositAll = useCallback(
+    async (marginBank: Address, collateral: Address) => {
+      setError(null);
+      setBusy("Depositing USDso…");
+      try {
+        await ensureChain();
+        const ex = getExchange();
+        const bal = await ex.client.getErc20Balance(collateral, address!);
+        if (bal === 0n) throw new Error("No USDso in your wallet to deposit.");
+        const r = await ex.trader.depositMargin({ marginBank, amount: bal, collateral, autoApprove: true });
+        return r.hash;
+      } catch (e) {
+        setError(e);
+        throw e;
+      } finally {
+        setBusy(null);
+      }
+    },
+    [address, ensureChain],
+  );
+
+  return { address, chainId, wrongChain: !!address && chainId !== CHAIN_ID, busy, error, setError, openFor, closePosition, claimVoucher, depositAll };
 }

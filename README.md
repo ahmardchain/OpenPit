@@ -10,6 +10,7 @@ ranked by **return-on-cap** (session PnL ÷ the pit's per-trader cap), so convic
 The result renders as a shareable OG card with a one-tap Rematch.
 
 - Live demo: _(Vercel URL goes here)_
+- Screenshots: [`docs/settled-pit.png`](./docs/settled-pit.png) · [`docs/og-settled.png`](./docs/og-settled.png) · [`docs/home.png`](./docs/home.png)
 - Evidence of real orders: [EVIDENCE.md](./EVIDENCE.md)
 - License: [MIT](./LICENSE)
 
@@ -58,11 +59,13 @@ Scripts:
 | `npm run smoke` | Step 0: connects, lists markets, claims paper USDso if eligible, places a tiny IOC on BTC (fallback ETH), closes it, appends tx hashes to `EVIDENCE.md` |
 | `npm run e2e` | Full run against a running server: create pit → second wallet fades → bell → settle → both close. Appends everything to `EVIDENCE.md` |
 | `npm run balances` | STT balance of the two script wallets |
+| `npm run fund:second` | Testnet helper: moves 50 USDso + 10 STT from wallet 1 to wallet 2 |
 | `npm run typecheck` | `tsc --noEmit` |
 
 Getting test funds: STT for gas via **Link a Bot → “Send it for gas”** on [app.testnet.dreamdex.io](https://app.testnet.dreamdex.io) or the
 [Somnia faucet](https://testnet.somnia.network); the 1,000 **paper USDso** credit is claimable in-app (the “Claim 1,000 paper USDso” button
 calls `trader.claimPerpVoucher`). Paper USDso only opens positions on its allowlist — the app surfaces `limitedBy: voucherBlocked` in plain words.
+If the claim reverts (it did for our fresh wallets, see EVIDENCE.md) or you got USDso from the **Somnia Tokyo Telegram faucet** (`/faucet <address>` in the dreamDEX builders group: 50 STT + 100 USDso), the same panel offers **“Deposit wallet USDso into Perps”**, which runs `trader.depositMargin` with auto-approve.
 
 > Sandbox note: the `NODE_USE_ENV_PROXY=1 … --import ./scripts/proxy-preload.mjs` prefix in the script commands only matters behind an
 > egress proxy; it is a no-op otherwise.

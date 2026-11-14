@@ -7,9 +7,13 @@ import { txUrl } from "@/lib/chain";
 import { useTrade } from "@/lib/use-trade";
 import { Spinner } from "./ui";
 
+/** USDso, the perps collateral on Hideki (also readable from any market row's quoteToken). */
+const USDSO = "0xed7993A74dAe1e6656B704A424DcD8711aAf4F72" as const;
+
 /** Shows the wallet's Perps margin and offers the one-time paper-USDso claim. Numbers come straight from MarginBank. */
 export function MarginStatus({ marginBank }: { marginBank: Address }) {
-  const { address, claimVoucher, busy } = useTrade();
+  const { address, claimVoucher, depositAll, busy } = useTrade();
+  const [walletUsd, setWalletUsd] = useState<bigint | null>(null);
   const [equity, setEquity] = useState<bigint | null>(null);
   const [stt, setStt] = useState<bigint | null>(null);
   const [eligible, setEligible] = useState<{ eligible: boolean; reason?: string } | null>(null);
@@ -22,12 +26,14 @@ export function MarginStatus({ marginBank }: { marginBank: Address }) {
     const run = async () => {
       try {
         const ex = getExchange();
-        const [acct, el, bal] = await Promise.all([
+        const [acct, el, bal, usd] = await Promise.all([
           ex.client.getMarginAccount(marginBank, address),
           ex.client.getPerpVoucherEligibility(marginBank, address),
           ex.client.getNativeBalance(address),
+          ex.client.getErc20Balance(USDSO, address),
         ]);
         if (stop) return;
+        setWalletUsd(usd);
         setEquity(acct.equity);
         setStt(bal);
         setEligible(el.eligible ? { eligible: true } : { eligible: false, reason: el.reason });
@@ -67,6 +73,21 @@ export function MarginStatus({ marginBank }: { marginBank: Address }) {
           className="rounded-md bg-emerald-500/20 px-2 py-1 font-semibold text-emerald-200 hover:bg-emerald-500/30 disabled:opacity-50"
         >
           Claim 1,000 paper USDso
+        </button>
+      )}
+      {walletUsd !== null && walletUsd > 0n && (
+        <button
+          disabled={!!busy}
+          onClick={async () => {
+            try {
+              setClaimTx(await depositAll(marginBank, USDSO));
+            } catch {
+              /* shown by ErrorBox on the page */
+            }
+          }}
+          className="rounded-md bg-amber-500/20 px-2 py-1 font-semibold text-amber-200 hover:bg-amber-500/30 disabled:opacity-50"
+        >
+          Deposit {(Number(walletUsd) / 1e18).toFixed(0)} wallet USDso into Perps
         </button>
       )}
       {eligible && !eligible.eligible && equity !== null && equity <= 0n && <span className="text-amber-300">voucher: {eligible.reason}</span>}
