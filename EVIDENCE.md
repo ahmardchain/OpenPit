@@ -20,6 +20,21 @@ Each run of `npm run smoke` appends below. The end-to-end pit run (create → jo
 | Close after bell | joiner | https://explorer.testnet.somnia.network/tokyo/tx/0xba81ba931f1df43f6a783187184f241ddd3b142b0c416f2e94e7c85503c89369 |
 
 Screenshots of the settled pit, the home page and the OG card are in [`docs/`](./docs).
+
+## Seeded pit `e62795e1ee`
+
+Inserted by `migrations/0002_seed_real_pit.sql` (and the same statements in `src/lib/seed.ts`) with `INSERT OR IGNORE`, so a fresh database opens on this settled Hideki pit. The hashes below are copied from that file.
+
+| | |
+| --- | --- |
+| Pit | `e62795e1ee` — BTC-PERP, creator long, 5 minutes, $20 cap, settled at block 50253138, frozen mark from the row |
+| Creator | `0x86f95901932352e0f25B6c4807268334D97c065C` |
+| Opening order (also the creator's join) | https://explorer.testnet.somnia.network/tokyo/tx/0x940bd096e07cf65f200beb317f9796cf5569b9067b98f3c000b7da09d185e3bc |
+| Joiner | `0x0F095219812512018b2A071200Da256bEA984CAE`, short |
+| Fade order | https://explorer.testnet.somnia.network/tokyo/tx/0x4687673ae20ece3243bb551ad1cbc44e9007ecf2d5eaf86272e7f5d2a92e607c |
+| Creator intent signature | `0x268ee51e737fb756cf70d1bde689c9a17b15df3c3ea4ad2ba0bbb55fb724e88a7623e20ea17f34992aff665c1002e6a6b8fd86b998a81c1844e820d1d81c83cf1c` |
+
+This is a different run from pit `96d75d2404` in the summary above.
 Note: `claimPerpVoucher` reverted for both fresh wallets with selector `0x3e31dcc2` although `getPerpVoucherEligibility` returned `eligible: true`; the app and scripts fall back to depositing wallet USDso (from the Somnia Tokyo Telegram faucet) into the MarginBank.
 
 ## Raw logs

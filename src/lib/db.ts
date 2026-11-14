@@ -8,6 +8,7 @@
  */
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { SEED } from "./seed";
+import { SCHEMA_VERSION, schemaDriftMessage, schemaProblems, type SchemaColumn } from "./schema-guard";
 
 export type PitStatus = "live" | "settled";
 export type Mode = "chain" | "demo";
@@ -59,33 +60,72 @@ export interface JoinRow {
   final_roc_bps: number | null;
 }
 
-// Mirrors migrations/0001_init.sql.
-const SCHEMA = [
-  `CREATE TABLE IF NOT EXISTS pits (
+// Mirrors migrations/0001_init.sql. CREATE TABLE IF NOT EXISTS does not alter a table that already exists.
+const CREATE_PITS = `CREATE TABLE IF NOT EXISTS pits (
     id TEXT PRIMARY KEY, mode TEXT NOT NULL DEFAULT 'chain', creator TEXT NOT NULL, market TEXT NOT NULL, pool TEXT NOT NULL,
     margin_bank TEXT NOT NULL, base_decimals INTEGER NOT NULL, tick_size TEXT NOT NULL, lot_size TEXT NOT NULL, min_quantity TEXT NOT NULL,
     side TEXT NOT NULL, duration_min INTEGER NOT NULL, cap_usd REAL NOT NULL, thesis TEXT NOT NULL DEFAULT '',
     intent_json TEXT NOT NULL, signature TEXT NOT NULL DEFAULT '', open_tx TEXT UNIQUE,
     start_block INTEGER NOT NULL, start_mark TEXT NOT NULL, start_ts INTEGER NOT NULL, end_ts INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'live', end_block INTEGER, end_mark TEXT, settled_ts INTEGER, winner TEXT, parent_id TEXT
-  )`,
-  `CREATE TABLE IF NOT EXISTS joins (
+  )`;
+const CREATE_JOINS = `CREATE TABLE IF NOT EXISTS joins (
     id INTEGER PRIMARY KEY AUTOINCREMENT, pit_id TEXT NOT NULL REFERENCES pits(id), mode TEXT NOT NULL DEFAULT 'chain',
     wallet TEXT NOT NULL, side TEXT NOT NULL, qty TEXT NOT NULL, entry TEXT NOT NULL, notional TEXT NOT NULL,
     tx_hash TEXT UNIQUE, block_number INTEGER NOT NULL, ts INTEGER NOT NULL,
     close_tx TEXT, final_pnl TEXT, final_roc_bps REAL
-  )`,
-  `CREATE INDEX IF NOT EXISTS joins_pit ON joins(pit_id)`,
-  `CREATE INDEX IF NOT EXISTS pits_status ON pits(status, end_ts)`,
-  ...SEED,
-];
+  )`;
+const CREATE_META = `CREATE TABLE IF NOT EXISTS schema_meta (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    version INTEGER NOT NULL
+  )`;
+const INDEXES = [`CREATE INDEX IF NOT EXISTS joins_pit ON joins(pit_id)`, `CREATE INDEX IF NOT EXISTS pits_status ON pits(status, end_ts)`];
 let schemaReady: Promise<unknown> | null = null;
+
+async function columns(d1: D1Database, table: "pits" | "joins"): Promise<SchemaColumn[]> {
+  const res = await d1.prepare(`PRAGMA table_info(${table})`).all<SchemaColumn>();
+  return res.results ?? [];
+}
+
+/** Add `mode` when an older database is missing it. Never drops or rebuilds a table. */
+async function addMode(d1: D1Database, table: "pits" | "joins") {
+  try {
+    await d1.prepare(`ALTER TABLE ${table} ADD COLUMN mode TEXT NOT NULL DEFAULT 'chain'`).run();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/duplicate column/i.test(msg)) throw e;
+  }
+}
+
+async function ensureSchema(d1: D1Database) {
+  await d1.batch([d1.prepare(CREATE_PITS), d1.prepare(CREATE_JOINS), d1.prepare(CREATE_META), ...INDEXES.map((sql) => d1.prepare(sql))]);
+  let pits = await columns(d1, "pits");
+  let joins = await columns(d1, "joins");
+  if (!pits.length || !joins.length) {
+    throw new Error("OpenPit D1 schema is missing the pits or joins table after CREATE. Refusing to continue.");
+  }
+  if (!pits.some((c) => c.name === "mode")) {
+    await addMode(d1, "pits");
+    pits = await columns(d1, "pits");
+  }
+  if (!joins.some((c) => c.name === "mode")) {
+    await addMode(d1, "joins");
+    joins = await columns(d1, "joins");
+  }
+  const problems = schemaProblems(pits, joins);
+  if (problems.length) throw new Error(schemaDriftMessage(problems));
+  for (const sql of SEED) await d1.prepare(sql).run();
+  await d1
+    .prepare("INSERT INTO schema_meta (id, version) VALUES (1, ?1) ON CONFLICT(id) DO UPDATE SET version = excluded.version")
+    .bind(SCHEMA_VERSION)
+    .run();
+}
 
 async function db(): Promise<D1Database> {
   const { env } = await getCloudflareContext({ async: true });
   const d1 = (env as { DB?: D1Database }).DB;
-  if (!d1) throw new Error("D1 binding `DB` is missing; check the d1_databases entry in wrangler.jsonc.");
-  schemaReady ??= d1.batch(SCHEMA.map((s) => d1.prepare(s))).catch((e) => {
+  if (!d1) throw new Error("D1 binding `DB` is missing. wrangler.jsonc binds `DB` to the `openpit` database; confirm this deploy used that config.");
+  schemaReady ??= ensureSchema(d1).catch((e) => {
     schemaReady = null;
     throw e;
   });

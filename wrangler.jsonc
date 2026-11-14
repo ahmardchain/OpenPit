@@ -8,10 +8,11 @@
   "observability": { "enabled": true },
   "d1_databases": [
     {
-      // No database_id: `wrangler deploy` creates the `openpit` D1 database on the first deploy and
-      // reuses it afterwards. To use an existing database, add "database_id": "<id>" here.
+      // Production D1 database `openpit`. The id keeps the Worker bound to this database on every deploy.
+      // Schema changes are additive in src/lib/db.ts. The app never drops or rebuilds these tables.
       "binding": "DB",
       "database_name": "openpit",
+      "database_id": "cbca1d12-0c5e-4007-a866-107a511af7c5",
       "migrations_dir": "migrations"
     }
   ]

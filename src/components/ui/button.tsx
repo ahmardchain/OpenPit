@@ -9,16 +9,16 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-accent text-accent-ink hover:bg-[#1a50dd]",
-        long: "bg-long text-white hover:bg-[#087a4d]",
-        fade: "bg-fade text-white hover:bg-[#b82841]",
-        outline: "border border-line-strong bg-bg text-fg hover:bg-surface",
+        default: "bg-accent text-accent-ink hover:bg-[#325ee6]",
+        long: "bg-long text-[#04150e] hover:bg-[#17a86c]",
+        fade: "bg-fade text-white hover:bg-[#d13e43]",
+        outline: "border border-line-strong bg-transparent text-fg hover:bg-surface-2",
         ghost: "text-muted hover:bg-surface hover:text-fg",
       },
       size: {
         sm: "h-8 px-3",
         default: "h-10 px-4",
-        lg: "h-12 px-5 text-base",
+        lg: "h-11 px-[18px] text-[15px]",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

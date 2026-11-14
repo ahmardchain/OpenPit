@@ -9,6 +9,9 @@ import { fmtPct, fmtUsd } from "@/lib/scoring";
 import { addrUrl, txUrl } from "@/lib/chain";
 import { clock, ErrorBox, useNow } from "@/components/ui";
 import { Button } from "@/components/ui/button";
+import { BellClock } from "@/components/digits";
+import { fieldClass } from "@/components/segmented";
+import { Spotlight } from "@/components/spotlight";
 import { Activity, CrowdSplit, PriceStrip, Standings, scoreJoins } from "@/components/scoreboard";
 import { WalletTicket } from "@/components/wallet-ticket";
 
@@ -74,66 +77,91 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
   const rematchUrl = `/new?rematch=${pit.id}&market=${pit.market}&side=${pit.side}&duration=${pit.durationMin}&cap=${pit.capUsd}&thesis=${encodeURIComponent(pit.thesis)}`;
 
   return (
-    <div className="space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-6">
-        <div className="min-w-0 space-y-1">
-          <div className="text-sm text-muted">
+    <div>
+      <header className="flex flex-wrap items-end justify-between gap-5 border-b border-line pb-6">
+        <div className="min-w-0">
+          <div className="mb-1.5 text-xs text-muted">
             <Link href="/" className="hover:text-fg">
               Pits
             </Link>{" "}
             / {pit.id}
           </div>
-          <h1 className="text-3xl font-semibold">{pit.market}-PERP</h1>
-          <p className="text-sm text-muted">
+          <h1 className="text-[26px] font-semibold sm:text-[32px]">{pit.market}-PERP</h1>
+          <p className="mt-1.5 max-w-3xl text-[13.5px] text-muted">
             {who({ mode: pit.mode, wallet: pit.creator })} called <span className={pit.side === "long" ? "text-long" : "text-fade"}>{pit.side}</span> for {pit.durationMin} minutes, {cap} cap per
             player, {pit.mode === "demo" ? "paper positions" : "real orders on dreamDEX"}
           </p>
-          {pit.thesis && <p className="max-w-xl pt-1">{pit.thesis}</p>}
+          {pit.thesis && <p className="mt-2 max-w-3xl">{pit.thesis}</p>}
         </div>
         <div className="sm:text-right">
-          <div className="label">{settled ? "Settled" : open ? "Bell in" : "Settling"}</div>
-          <div className="num text-3xl font-medium">{settled ? `#${pit.endBlock}` : clock(pit.endTs - now)}</div>
+          <div className="label mb-1.5">{settled ? "Settled" : open ? "Bell in" : "Settling"}</div>
+          {settled ? (
+            <div className="num text-[28px] font-medium tracking-tight">#{pit.endBlock}</div>
+          ) : open ? (
+            <BellClock seconds={pit.endTs - now} size="lg" />
+          ) : (
+            <div className="text-sm text-muted">Settling</div>
+          )}
         </div>
       </header>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="min-w-0 space-y-8 lg:col-start-1 lg:row-start-1">
+      {settled && (
+        <Spotlight className="mt-6 flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+          <div>
+            <div className="label">Winner</div>
+            {winner && winner.roc !== null ? (
+              <>
+                <div className="mt-1 text-[22px] tracking-tight">
+                  {who(winner)} <span className={winner.side === "long" ? "text-long" : "text-fade"}>{winner.side === "long" ? "Long" : "Short"}</span>
+                </div>
+                <p className="mt-1 text-xs text-muted">
+                  Won with <span className={`num ${winner.roc >= 0 ? "text-long" : "text-fade"}`}>{fmtPct(winner.roc)}</span> on the {cap} cap
+                  {winner.pnl !== null && <span className="num"> ({fmtUsd(winner.pnl)})</span>}
+                </p>
+                {mine && mine.roc !== null && (
+                  <p className="mt-1 text-xs text-muted">
+                    You finished {rows.indexOf(mine) + 1} of {rows.length} with <span className="num">{fmtPct(mine.roc)}</span>.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="mt-1 text-muted">Nobody joined this pit.</p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild>
+              <Link href={rematchUrl}>Rematch</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <a href={shareUrl} target="_blank" rel="noreferrer">
+                Post on X
+              </a>
+            </Button>
+          </div>
+        </Spotlight>
+      )}
+
+      <div className="mt-7 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col gap-7">
           <PriceStrip pit={pit} live={live} />
           <CrowdSplit pit={pit} />
+          <section>
+            <h2 className="mb-2.5 text-base font-semibold">Standings</h2>
+            <Standings pit={pit} rows={rows} me={me?.wallet} />
+            <p className="mt-2 text-xs text-muted">Return is PnL divided by the {cap} cap, the same for every player, so position size does not decide the winner.</p>
+          </section>
+          <section>
+            <h2 className="mb-2.5 text-base font-semibold">Activity</h2>
+            <Activity pit={pit} />
+          </section>
         </div>
-        <aside className="space-y-6 lg:sticky lg:top-6 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
-          {settled ? (
-            <div className="space-y-3 rounded-lg border border-line p-4">
-              <h2 className="font-semibold">Result</h2>
-              {winner && winner.roc !== null ? (
-                <p>
-                  {who(winner)} won with <span className={`num ${winner.roc >= 0 ? "text-long" : "text-fade"}`}>{fmtPct(winner.roc)}</span> on the {cap} cap
-                  {winner.pnl !== null && <span className="text-muted"> ({fmtUsd(winner.pnl)})</span>}.
-                </p>
-              ) : (
-                <p className="text-muted">Nobody joined this pit.</p>
-              )}
-              {mine && mine.roc !== null && (
-                <p className="text-sm text-muted">
-                  You finished {rows.indexOf(mine) + 1} of {rows.length} with <span className="num">{fmtPct(mine.roc)}</span>.
-                </p>
-              )}
-              <div className="flex gap-2">
-                <Button asChild>
-                  <Link href={rematchUrl}>Rematch</Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <a href={shareUrl} target="_blank" rel="noreferrer">
-                    Post on X
-                  </a>
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4 rounded-lg border border-line p-4">
-              <h2 className="font-semibold">{me ? "You're in" : "Join this pit"}</h2>
+
+        <aside className="flex flex-col gap-4 lg:sticky lg:top-[76px]">
+          {!settled && (
+            <Spotlight className="p-5">
+              <h2 className="mb-2.5 text-base font-semibold">{me ? "You're in" : "Join this pit"}</h2>
               {me ? (
-                <p className="text-sm">
+                <p className="text-[13.5px]">
                   <span className={me.side === "long" ? "text-long" : "text-fade"}>{me.side === "long" ? "Long" : "Short"}</span> from <span className="num">{fmtUsd(BigInt(me.entry))}</span>.{" "}
                   {mine?.roc != null && (
                     <>
@@ -143,7 +171,7 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
                 </p>
               ) : open ? (
                 <>
-                  <label className="block space-y-1">
+                  <label className="mt-1 flex flex-col gap-2">
                     <span className="label">Your name</span>
                     <input
                       id="player-name"
@@ -151,10 +179,10 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
                       onChange={(e) => setName(e.target.value)}
                       maxLength={20}
                       placeholder="e.g. satoshi_fade"
-                      className="h-10 w-full rounded-md border border-line-strong px-3 outline-none focus:border-accent"
+                      className={fieldClass}
                     />
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="mt-3 grid grid-cols-2 gap-2">
                     <Button variant="long" disabled={busy} onClick={() => joinPaper("long")}>
                       Long
                     </Button>
@@ -162,7 +190,7 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
                       Short
                     </Button>
                   </div>
-                  <p className="text-xs text-muted">
+                  <p className="mt-3 text-xs text-muted">
                     {pit.side === "long" ? "Long joins the creator, short fades them." : "Short joins the creator, long fades them."} You get a paper position worth {cap} at the current dreamDEX
                     mark. No wallet needed.
                   </p>
@@ -170,24 +198,28 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
               ) : (
                 <p className="text-sm text-muted">The bell has rung.</p>
               )}
-              {error && <ErrorBox error={new Error(error)} onClose={() => setError(null)} />}
-              <Button asChild variant="outline" className="w-full">
+              {error && (
+                <div className="mt-3">
+                  <ErrorBox error={new Error(error)} onClose={() => setError(null)} />
+                </div>
+              )}
+              <Button asChild variant="outline" className="mt-3.5 w-full">
                 <a href={shareUrl} target="_blank" rel="noreferrer">
                   Post on X
                 </a>
               </Button>
-            </div>
+            </Spotlight>
           )}
 
-          <div className="space-y-3 border-t border-line pt-4">
+          <div className="space-y-3">
             <button onClick={() => setUseWallet((v) => !v)} className="text-sm text-accent hover:underline">
               {useWallet ? "Hide wallet trading" : "Trade a real order with a wallet"}
             </button>
             {useWallet && <WalletTicket pit={pit} live={live} open={open} onPit={setPit} />}
           </div>
 
-          <dl className="space-y-1.5 border-t border-line pt-4 text-xs text-muted">
-            <div className="flex justify-between gap-3">
+          <dl className="space-y-1 border-t border-line pt-3.5 text-xs text-muted">
+            <div className="flex justify-between gap-3 py-0.5">
               <dt>Market pool</dt>
               <dd>
                 <a href={addrUrl(pit.pool)} target="_blank" rel="noreferrer" className="num hover:text-accent">
@@ -195,12 +227,12 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
                 </a>
               </dd>
             </div>
-            <div className="flex justify-between gap-3">
+            <div className="flex justify-between gap-3 py-0.5">
               <dt>Opened at block</dt>
               <dd className="num">{pit.startBlock}</dd>
             </div>
             {pit.openTx && (
-              <div className="flex justify-between gap-3">
+              <div className="flex justify-between gap-3 py-0.5">
                 <dt>Opening order</dt>
                 <dd>
                   <a href={txUrl(pit.openTx)} target="_blank" rel="noreferrer" className="num hover:text-accent">
@@ -210,7 +242,7 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
               </div>
             )}
             {pit.signature && (
-              <div className="flex justify-between gap-3">
+              <div className="flex justify-between gap-3 py-0.5">
                 <dt>Creator signature</dt>
                 <dd className="num" title={pit.signature}>
                   {who({ mode: "chain", wallet: pit.signature })}
@@ -219,18 +251,6 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
             )}
           </dl>
         </aside>
-        <div className="min-w-0 space-y-8 lg:col-start-1 lg:row-start-2">
-          <section className="space-y-2">
-            <h2 className="text-lg font-semibold">Standings</h2>
-            <Standings pit={pit} rows={rows} me={me?.wallet} />
-            <p className="text-xs text-muted">Return is PnL divided by the {cap} cap, the same for every player, so position size does not decide the winner.</p>
-          </section>
-          <section className="space-y-2">
-            <h2 className="text-lg font-semibold">Activity</h2>
-            <Activity pit={pit} />
-          </section>
-        </div>
-
       </div>
     </div>
   );

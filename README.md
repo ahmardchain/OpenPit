@@ -3,13 +3,11 @@
 > Call it. Open the pit. Let the crowd fade you.
 
 OpenPit is a dreamDEX Perps Builder Bounty MVP on the **Somnia Hideki testnet (chain 50383)**.
-A creator opens a 5/15/30-minute **pit** on one dreamDEX perp market with a signed thesis and a real opening order.
-Anyone joins **LONG** (with the creator) or **FADE** (against them) from their own wallet with a real on-chain IOC order.
-A live card scores the crowd block-by-block via Somnia Reactivity; at the bell the mark is frozen and every trader is
-ranked by **return-on-cap** (session PnL ÷ the pit's per-trader cap), so conviction wins, not size.
-The result renders as a shareable OG card with a one-tap Rematch.
+A creator opens a 5, 15, or 30-minute **pit** on one dreamDEX perp. **Paper** mode opens that position at the live mark with no wallet. **Wallet** mode signs a thesis and sends a real opening order through `@somnia-chain/markets-sdk`.
+Anyone joins the creator's side or fades them until the bell. The live card reads the mark with Somnia Reactivity (`somnia_watch`) and, until that socket delivers, with an HTTP `tryGetMarkPrice`. At the bell the mark is frozen and every player is ranked by **return-on-cap** (session PnL ÷ the per-player cap), so a bigger account has no edge.
+The result is a shareable OG card with a one-tap rematch.
 
-- Live demo: _(Cloudflare Workers URL goes here)_
+- Live demo: https://openpit.ahmardchain.workers.dev
 - Screenshots: [`docs/settled-pit.png`](./docs/settled-pit.png) · [`docs/og-settled.png`](./docs/og-settled.png) · [`docs/home.png`](./docs/home.png)
 - Evidence of real orders: [EVIDENCE.md](./EVIDENCE.md)
 - License: [MIT](./LICENSE)
@@ -28,8 +26,9 @@ The result renders as a shareable OG card with a one-tap Rematch.
   `to == this pit's pool`, then decodes `OrderFilled` (pool) and `PositionUpdated` (MarginBank) logs to derive the
   filled quantity, VWAP entry and resulting position direction. Nothing in the body is trusted.
 - The pit intent is **EIP-191 signed** by the creator (`verifyMessage` on the server) and stored verbatim with the pit.
-- Mark prices, positions, margin, voucher eligibility all come from chain reads (`tryGetMarkPrice`, `getPosition`,
-  `getMarginAccount`, `getPerpVoucherEligibility`). Market rows come from the dreamDEX indexer. No mock data anywhere.
+- Mark prices, positions, margin, and voucher eligibility come from chain reads (`tryGetMarkPrice`, `getPosition`,
+  `getMarginAccount`, `getPerpVoucherEligibility`). Market rows come from the dreamDEX indexer.
+- **Paper mode is labeled in the UI.** A paper position is filled at the live dreamDEX mark and settled against the real mark at the bell. It does not invent prices. Wallet pits are the real orders above. A fresh database also inserts one settled on-chain pit, `e62795e1ee`, from `migrations/0002_seed_real_pit.sql` (see [EVIDENCE.md](./EVIDENCE.md)).
 
 ## Run it
 
@@ -74,7 +73,8 @@ If the claim reverts (it did for our fresh wallets, see EVIDENCE.md) or you got 
 ### Deploy on Cloudflare Workers
 
 OpenPit runs on Cloudflare Workers through [OpenNext](https://opennext.js.org/cloudflare). Pit metadata lives in **D1**
-(SQLite), bound as `DB` in `wrangler.jsonc`.
+(SQLite). `wrangler.jsonc` binds it as `DB` to the database named `openpit`
+(`database_id` `cbca1d12-0c5e-4007-a866-107a511af7c5`).
 
 **From the Cloudflare dashboard (Workers Builds, connected to this repo):**
 
@@ -83,22 +83,17 @@ OpenPit runs on Cloudflare Workers through [OpenNext](https://opennext.js.org/cl
 | Build command | `npm run build` (runs `opennextjs-cloudflare build`, which runs `next build` itself) |
 | Deploy command | `npx wrangler deploy` |
 
-On the first deploy Wrangler creates the `openpit` D1 database and binds it; the app creates its tables on first use,
-so no manual migration is needed. Share links use the request's own host; set `NEXT_PUBLIC_APP_URL` only to force a
-different domain.
+The app creates tables on first use when they are missing. `CREATE TABLE IF NOT EXISTS` does not alter a table that already exists, so `src/lib/db.ts` adds a missing `mode` column and then checks the rest of the shape (`open_tx` and `tx_hash` must be nullable). If that check fails it throws a clear error and **does not drop or rebuild tables**. Share links use the request's own host; set `NEXT_PUBLIC_APP_URL` only to force a different domain.
 
 **From your machine:**
 
 ```bash
 npx wrangler login
-```
-
-```bash
+npx wrangler d1 migrations apply openpit --remote
 npm run deploy
 ```
 
-Local development uses a local D1 copy: `npm run dev`. `npm run preview` builds the Worker and serves it with
-`wrangler dev`.
+`migrations apply` is safe to re-run: the migration files use `CREATE TABLE IF NOT EXISTS` and `INSERT OR IGNORE`. Local development uses a local D1 copy: `npm run dev`. `npm run preview` builds the Worker and serves it with `wrangler dev`.
 
 **Bundle size.** The Worker is about 2.2 MB gzipped, under the 3 MB free-plan limit. To stay there, everything that
 only runs in the browser is kept out of the server bundle: RainbowKit's connect button, the dreamDEX SDK screens
@@ -149,7 +144,7 @@ see [`src/lib/use-live-pit.ts`](./src/lib/use-live-pit.ts).
 ```ts
 const reactivity = createReactivity(exchange.client);              // @somnia-chain/markets-sdk/reactivity
 const watch = unwrap(await reactivity.watch({
-  eventContractSources: [pool, oracle, marginBank],                // any log from the pit's pool, its mark oracle, or the bank
+  eventContractSources: [pool, oracle],                             // logs from the pit's pool and its mark oracle
   ethCalls: [
     { to: pool,       data: encode(tryGetMarkPrice) },             // mark at the very same block
     ...traders.map(w => ({ to: marginBank, data: encode(getPosition(w, pool)) })),
@@ -160,10 +155,11 @@ const watch = unwrap(await reactivity.watch({
 ```
 
 Every matching log arrives **with the results of those `eth_call`s executed at that same block**, so the card re-scores
-(crowd bar, per-trader PnL, return-on-cap) without a follow-up round trip and without racing the next block. If the
-watch cannot open (no WS, unsupported node) the hook falls back to a **2-second poll** of the same calls pinned to one
-block number, and the card says which source it is on. The Solidity flavour (`subscribe` + a `SomniaEventHandler`) is
-not used yet — see future work.
+(crowd bar, per-trader PnL, return-on-cap) without a follow-up round trip and without racing the next block. While the
+socket is still opening, the hook reads `tryGetMarkPrice` (and open positions) over **HTTP RPC every 2 seconds**, so the
+mark is not stuck on “Loading”. After the first Reactivity push, that fast poll stops and a 10-second heartbeat remains.
+If the watch cannot open, the same calls are polled through the SDK client every 2 seconds, and the card says which
+source it is on. The Solidity flavour (`subscribe` + a `SomniaEventHandler`) is not used yet — see future work.
 
 ## Demo video
 
@@ -180,9 +176,9 @@ Output: `demo/openpit-demo.mp4` (1280x720) and `demo/openpit-demo.srt`.
 
 ## X posts
 
-- _(post 1 — pit opened)_
-- _(post 2 — settled result card)_
-- _(post 3 — rematch / recap)_
+- TODO: paste the real post URL — pit opened
+- TODO: paste the real post URL — settled result card
+- TODO: paste the real post URL — rematch / recap
 
 ## Future work
 

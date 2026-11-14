@@ -1,26 +1,30 @@
 @import "tailwindcss";
 
-/* OpenPit tokens. Layout concept: an exchange screen, not a landing page. Tables and one order ticket,
-   hairline rules instead of cards, a single blue for actions, green and red only for long and short. */
+/* Pit Floor. Dark trading desk: hairline tables, one blue for actions, green and red only for long and short.
+   Bell gold is reserved for the clock. */
 :root {
-  color-scheme: light;
-  --bg: #ffffff;
-  --surface: #f5f7fb;
-  --line: #e2e7f0;
-  --line-strong: #c7d0e0;
-  --fg: #0c1630;
-  --muted: #5d6882;
-  --accent: #1f5eff;
+  color-scheme: dark;
+  --bg: #0b0c0f;
+  --surface: #121318;
+  --surface-2: #181a21;
+  --line: #23262f;
+  --line-strong: #2e3340;
+  --fg: #edece7;
+  --muted: #8b8e99;
+  --accent: #3b6cff;
+  --accent-dim: #1f5eff;
   --accent-ink: #ffffff;
-  --long: #0a8a57;
-  --fade: #d02f4b;
-  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --long: #1bbf7a;
+  --fade: #e5484d;
+  --bell: #e6b325;
+  --font-body: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, monospace;
 }
 
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
   --color-fg: var(--fg);
@@ -29,6 +33,7 @@
   --color-accent-ink: var(--accent-ink);
   --color-long: var(--long);
   --color-fade: var(--fade);
+  --color-bell: var(--bell);
   --font-body: var(--font-body);
   --font-mono: var(--font-mono);
 }
@@ -38,25 +43,40 @@ body {
   color: var(--fg);
   font-family: var(--font-body);
   font-size: 15px;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 h1, h2, h3 {
   text-wrap: balance;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.03em;
+  font-weight: 600;
 }
 
 .num {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 
 .label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
+}
+
+.tape-track {
+  animation: marquee 42s linear infinite;
+}
+
+.tape-track:hover {
+  animation-play-state: paused;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }
 
 :focus-visible {
