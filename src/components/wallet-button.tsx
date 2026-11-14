@@ -5,6 +5,6 @@ import dynamic from "next/dynamic";
 export const WalletButton = dynamic(() => import("./wallet-button-impl"), {
   ssr: false,
   loading: () => (
-    <span className="inline-flex h-10 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-accent-ink opacity-80">Connect Wallet</span>
+    <span className="inline-flex h-10 items-center rounded-md bg-accent px-4 text-sm font-medium text-accent-ink opacity-80">Connect Wallet</span>
   ),
 });

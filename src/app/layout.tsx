@@ -1,8 +1,22 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Instrument_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { Wordmark } from "@/components/logo";
+import { SiteHeader } from "@/components/site-header";
+
+const instrument = Instrument_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-instrument",
+  display: "swap",
+});
+
+const jetbrains = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-jetbrains",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "OpenPit",
@@ -11,31 +25,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
-      </head>
+    <html lang="en" className={`${instrument.variable} ${jetbrains.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col overflow-x-hidden bg-bg text-fg">
         <Providers>
-          <header className="border-b border-line">
-            <nav className="mx-auto flex max-w-5xl items-center gap-6 px-4 py-3">
-              <Link href="/" aria-label="OpenPit home">
-                <Wordmark />
-              </Link>
-              <Link href="/" className="text-sm text-muted hover:text-fg">
-                Pits
-              </Link>
-              <Link href="/new" className="text-sm text-muted hover:text-fg">
-                Open a pit
-              </Link>
-              <span className="ml-auto hidden text-xs text-muted sm:inline">Somnia Hideki testnet</span>
-            </nav>
-          </header>
-          <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
+          <SiteHeader />
+          <main className="mx-auto w-full max-w-[1200px] flex-1 px-6 py-7">{children}</main>
           <footer className="border-t border-line">
-            <div className="mx-auto flex max-w-5xl flex-wrap gap-x-6 gap-y-1 px-4 py-4 text-xs text-muted">
+            <div className="mx-auto flex max-w-[1200px] flex-wrap gap-x-6 gap-y-2 px-6 py-4 text-xs text-muted">
               <span>Prices from dreamDEX perps on Somnia Hideki (chain 50383)</span>
               <a className="hover:text-fg" href="https://github.com/ahmardchain/openpit" target="_blank" rel="noreferrer">
                 Source

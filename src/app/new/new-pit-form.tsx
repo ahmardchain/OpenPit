@@ -9,10 +9,14 @@ import type { PitMarket } from "@/lib/markets";
 import { intentMessage, type PitIntent } from "@/lib/intent";
 import { previewSize, useTrade } from "@/lib/use-trade";
 import { fmtQty, fmtUsd } from "@/lib/scoring";
-import { Card, ErrorBox, Spinner } from "@/components/ui";
+import { ErrorBox, Spinner } from "@/components/ui";
 import { MarginStatus } from "@/components/margin-status";
 import { Button } from "@/components/ui/button";
+import { fieldClass, Segmented } from "@/components/segmented";
+import { Spotlight } from "@/components/spotlight";
 import { cn } from "@/lib/utils";
+import { who } from "@/lib/pit-view";
+import { ModeField } from "./mode-field";
 
 type Step = "form" | "signing" | "ordering" | "confirming" | "registering" | "done";
 
@@ -95,67 +99,67 @@ export default function NewPitForm() {
 
   const capRaw = BigInt(Math.round(cap * 1e6)) * 10n ** 12n;
 
-  return (
-    <div className="space-y-5">
-      <p className="text-sm text-muted">You sign the pit details, then place a real opening order from your wallet. The pit opens once that order is confirmed on-chain.</p>
+  const lengths = [5, 15, 30];
+  const lengthValue = lengths.includes(duration) ? String(duration) : "";
 
-      <Card className="space-y-4">
-        <div>
-          <label className="mb-1 block label">Market</label>
+  return (
+    <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div>
+        <ModeField />
+        <p className="mb-[22px] text-sm text-muted">You sign the pit details, then place a real opening order from your wallet. The pit opens once that order is confirmed on-chain.</p>
+
+        <div className="mb-[22px] flex flex-col gap-2">
+          <span className="label">Market</span>
           {!markets ? (
             <Spinner />
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {markets.map((m) => (
-                <button key={m.symbol} onClick={() => setSymbol(m.symbol)} className={cn("rounded-xl border px-3 py-1.5 text-sm font-semibold transition-all active:scale-95", symbol === m.symbol ? "border-accent bg-surface-2 text-accent" : "border-line bg-surface hover:border-muted")}>
-                  {m.symbol}
-                  {m.markPrice && <span className="ml-1 tabular text-xs font-normal text-muted">{fmtUsd(BigInt(m.markPrice), 0)}</span>}
-                </button>
-              ))}
-            </div>
+            <Segmented label="Market" value={symbol} onChange={setSymbol} options={markets.map((m) => ({ value: m.symbol, label: m.symbol }))} />
+          )}
+          {market?.markPrice && (
+            <p className="text-xs text-muted">
+              {market.symbol}-PERP mark <span className="num text-fg">{fmtUsd(BigInt(market.markPrice))}</span>
+            </p>
           )}
         </div>
 
-        <div>
-          <label className="mb-1 block label">Your call</label>
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setSide("long")} className={cn("rounded-2xl border py-4 text-xl font-black transition-all active:scale-[0.98]", side === "long" ? "border-long bg-long text-accent-ink" : "border-line text-muted hover:border-muted")}>
-              LONG
+        <div className="mb-[22px] flex flex-col gap-2">
+          <span className="label">Your call</span>
+          <div className="grid max-w-[360px] grid-cols-2 gap-2">
+            <button type="button" onClick={() => setSide("long")} className={cn("h-11 rounded-md border font-medium", side === "long" ? "border-long bg-long text-[#04150e]" : "border-line-strong text-muted")}>
+              Long
             </button>
-            <button onClick={() => setSide("short")} className={cn("rounded-2xl border py-4 text-xl font-black transition-all active:scale-[0.98]", side === "short" ? "border-fade bg-fade text-accent-ink" : "border-line text-muted hover:border-muted")}>
-              SHORT
+            <button type="button" onClick={() => setSide("short")} className={cn("h-11 rounded-md border font-medium", side === "short" ? "border-fade bg-fade text-white" : "border-line-strong text-muted")}>
+              Short
             </button>
           </div>
-          <p className="mt-1 text-xs text-muted">Joiners pick LONG (with you) or FADE (against you).</p>
+          <p className="text-xs text-muted">Joiners pick long (with you) or the other side (against you).</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block label">Duration</label>
-            <div className="flex gap-2">
-              {[5, 15, 30].map((d) => (
-                <button key={d} onClick={() => setDuration(d)} className={cn("flex-1 rounded-xl border py-1.5 text-sm font-semibold transition-all active:scale-95", duration === d ? "border-accent bg-surface-2 text-accent" : "border-line hover:border-muted")}>
-                  {d}m
-                </button>
-              ))}
-            </div>
+        <div className="mb-[22px] flex flex-wrap gap-6">
+          <div className="flex flex-col gap-2">
+            <span className="label">Length</span>
+            <Segmented label="Length" value={lengthValue} onChange={(v) => setDuration(Number(v))} options={lengths.map((d) => ({ value: String(d), label: `${d} min` }))} />
           </div>
-          <div>
-            <label className="mb-1 block label">Cap per trader (USDso)</label>
-            <input type="number" min={1} max={100000} value={cap} onChange={(e) => setCap(Number(e.target.value))} className="w-full rounded-xl border border-line bg-bg px-3 py-2 tabular outline-none focus:border-accent" />
+          <div className="flex flex-col gap-2">
+            <label htmlFor="wallet-cap" className="label">
+              Cap per player, USDso
+            </label>
+            <input id="wallet-cap" type="number" min={1} max={100000} value={cap} onChange={(e) => setCap(Number(e.target.value))} className={cn(fieldClass, "num w-32")} />
           </div>
         </div>
 
-        <div>
-          <label className="mb-1 block label">Thesis (optional, one line)</label>
-          <input maxLength={140} value={thesis} onChange={(e) => setThesis(e.target.value)} placeholder="e.g. Funding flipped negative; shorts are crowded into the close" className="w-full rounded-xl border border-line bg-bg px-3 py-2 outline-none focus:border-accent" />
+        <div className="mb-[22px] flex flex-col gap-2">
+          <label htmlFor="wallet-thesis" className="label">
+            Why (optional)
+          </label>
+          <input id="wallet-thesis" maxLength={140} value={thesis} onChange={(e) => setThesis(e.target.value)} placeholder="Funding turned negative and shorts are crowded" className={fieldClass} />
         </div>
 
-        {market && <MarginStatus marginBank={market.marginBank} />}
+        {market && <div className="mb-[22px]"><MarginStatus marginBank={market.marginBank} /></div>}
 
         {preview && market && (
-          <div className="rounded-xl border border-line bg-bg p-3 text-xs text-muted">
-            Opening order: <b className="text-fg">{side.toUpperCase()}</b> {fmtQty(preview.qty, market.baseDecimals)} {market.symbol} IOC (≈{fmtUsd((preview.qty * preview.mark) / 10n ** BigInt(market.baseDecimals))} of {fmtUsd(capRaw, 0)} cap) at mark {fmtUsd(preview.mark)}
+          <div className="mb-[22px] rounded-md border border-line bg-bg p-3 text-xs text-muted">
+            Opening order: <b className="text-fg">{side === "long" ? "Long" : "Short"}</b> {fmtQty(preview.qty, market.baseDecimals)} {market.symbol} IOC (≈{fmtUsd((preview.qty * preview.mark) / 10n ** BigInt(market.baseDecimals))} of {fmtUsd(capRaw, 0)} cap) at mark {fmtUsd(preview.mark)}
             {!preview.priceable && <span className="ml-2 text-fade">mark price stale</span>}
             {preview.belowMin && <span className="ml-2 text-fade">below this market&apos;s minimum size, raise the cap</span>}
             {preview.priceable && !preview.belowMin && !preview.placeable && <span className="ml-2 text-fade">not placeable: {preview.limitedBy}</span>}
@@ -165,23 +169,39 @@ export default function NewPitForm() {
         <ErrorBox error={trade.error} onClose={() => trade.setError(null)} />
         {apiError && <ErrorBox error={new Error(apiError)} onClose={() => setApiError(null)} />}
 
-        {!address ? (
-          <WalletButton />
-        ) : (
-          <Button variant={side === "long" ? "long" : "fade"} size="lg" className="w-full" disabled={step !== "form" || !market || !preview?.placeable} onClick={create}>
-            {step === "form" && `Sign intent & open ${side.toUpperCase()}`}
-            {step === "signing" && "Sign the pit intent in your wallet…"}
-            {step === "ordering" && (trade.busy ?? "Placing opening order…")}
-            {step === "registering" && "Verifying tx on-chain…"}
-            {step === "done" && "Pit is live!"}
-          </Button>
-        )}
+        <div className="mt-2">
+          {!address ? (
+            <WalletButton />
+          ) : (
+            <Button size="lg" disabled={step !== "form" || !market || !preview?.placeable} onClick={create}>
+              {step === "form" && `Sign intent and open ${side}`}
+              {step === "signing" && "Sign the pit intent in your wallet…"}
+              {step === "ordering" && (trade.busy ?? "Placing opening order…")}
+              {step === "registering" && "Verifying tx on-chain…"}
+              {step === "done" && "Pit is live"}
+            </Button>
+          )}
+        </div>
         {openTx && (
-          <a href={txUrl(openTx)} target="_blank" rel="noreferrer" className="block text-center text-xs text-accent underline">
-            opening order tx ↗
+          <a href={txUrl(openTx)} target="_blank" rel="noreferrer" className="mt-3 block text-xs text-accent underline">
+            opening order tx
           </a>
         )}
-      </Card>
+      </div>
+
+      <Spotlight className="p-5 lg:sticky lg:top-[76px]">
+        <div className="label">Preview</div>
+        <div className="mt-2 text-[22px] font-semibold tracking-tight">{symbol}-PERP</div>
+        <p className="mt-1 text-xs text-muted">
+          {address ? who({ mode: "chain", wallet: address }) : "your wallet"} · <span className={side === "long" ? "text-long" : "text-fade"}>{side}</span> · {duration} minutes · ${cap || 0} cap · wallet
+        </p>
+        {thesis.trim() && <p className="mt-2">{thesis}</p>}
+        <div className="mt-4">
+          <div className="label">Live mark</div>
+          <div className="num mt-1 text-[26px] font-medium tracking-tight">{market?.markPrice ? fmtUsd(BigInt(market.markPrice)) : "—"}</div>
+        </div>
+        <p className="mt-4 text-xs text-muted">A real opening order on dreamDEX. The pit opens once that order is confirmed.</p>
+      </Spotlight>
     </div>
   );
 }

@@ -5,14 +5,20 @@
  * Primary: Somnia Reactivity (`somnia_watch`) in the browser. We watch the PerpPool and its oracle; every matching log
  * arrives with same-block eth_calls already executed — the pool's mark price plus each participant's MarginBank
  * position — so the card re-scores on the exact block that moved it, with no follow-up round trips.
- * Fallback: if the watch fails to open, a 2s poll runs the same reads over the SDK's client.
+ * Fallback: an HTTP `tryGetMarkPrice` read runs immediately and every 2s until the socket delivers a block,
+ * so a slow Reactivity handshake does not leave the mark on "Loading". If the watch fails to open, the
+ * SDK client polls the same calls every 2s.
  */
 import { useEffect, useState } from "react";
-import { decodeFunctionResult, encodeFunctionData, isAddress, type Address, type Hex } from "viem";
+import { createPublicClient, decodeFunctionResult, encodeFunctionData, http, isAddress, type Address, type Hex } from "viem";
 import { createReactivity, unwrap, type ReactivityNotification } from "@somnia-chain/markets-sdk/reactivity";
 import { marginBankReadAbi, perpPoolReadAbi } from "./abi";
+import { hideki, RPC_HTTP } from "./chain";
 import { getExchange } from "./markets";
 import type { PitView } from "./pit-view";
+
+/** HTTP transport, independent of the SDK WebSocket the Reactivity watch opens. */
+const httpClient = createPublicClient({ chain: hideki, transport: http(RPC_HTTP) });
 
 export interface LiveState {
   mark: bigint | null;
@@ -32,13 +38,13 @@ export function useLivePit(pit: PitView | null) {
 
   useEffect(() => {
     if (!pit) return;
-    const ex = getExchange();
-    const viem = ex.client.getViemClient();
     const pool = pit.pool as Address;
     const bank = pit.marginBank as Address;
     let stopped = false;
+    let wsDelivered = false;
     let unsub: (() => Promise<void>) | null = null;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let httpTimer: ReturnType<typeof setInterval> | null = null;
 
     const calls = [
       { to: pool, data: encodeFunctionData({ abi: perpPoolReadAbi, functionName: "tryGetMarkPrice" }) },
@@ -56,33 +62,68 @@ export function useLivePit(pit: PitView | null) {
           const p = decodeFunctionResult({ abi: marginBankReadAbi, functionName: "getPosition", data: r });
           positions[w] = { size: p.size, avgEntryPrice: p.avgEntryPrice };
         });
-        setState((s) => ({ mark: ok ? price : s.mark, markOk: ok, positions, block, source, updates: s.updates + 1, lastEvent: ev ?? s.lastEvent }));
+        setState((s) => ({
+          mark: ok ? price : s.mark,
+          markOk: ok,
+          positions,
+          block,
+          // An HTTP read that lands after the socket is open should not downgrade the label.
+          source: source === "poll" && s.source === "reactivity" ? s.source : source,
+          updates: s.updates + 1,
+          lastEvent: ev ?? s.lastEvent,
+        }));
       } catch {
         /* a malformed result batch: keep the previous state */
       }
     };
 
-    const pollOnce = async (source: LiveState["source"]) => {
+    const readOverHttp = async () => {
+      if (stopped || wsDelivered) return;
       try {
-        const block = await viem.getBlockNumber();
-        const results = await Promise.all(calls.map((c) => viem.call({ to: c.to, data: c.data, blockNumber: block }).then((r) => (r.data ?? "0x") as Hex)));
-        apply(results, block, source, null);
+        const block = await httpClient.getBlockNumber();
+        if (stopped || wsDelivered) return;
+        const results = await Promise.all(calls.map((c) => httpClient.call({ to: c.to, data: c.data, blockNumber: block }).then((r) => (r.data ?? "0x") as Hex)));
+        if (stopped || wsDelivered) return;
+        apply(results, block, "poll", null);
       } catch {
-        /* transient RPC hiccup; next tick retries */
+        /* HTTP RPC hiccup; the interval retries until the socket delivers */
       }
     };
 
-    const startPoll = () => {
-      if (pollTimer) return;
-      pollOnce("poll");
-      pollTimer = setInterval(() => pollOnce("poll"), 2000);
+    const stopHttp = () => {
+      wsDelivered = true;
+      if (httpTimer) clearInterval(httpTimer);
+      httpTimer = null;
     };
 
+    void readOverHttp();
+    httpTimer = setInterval(() => void readOverHttp(), 2000);
+
     (async () => {
-      // Seed immediately so the card is never blank while the socket opens.
-      await pollOnce("connecting");
+      let ex: ReturnType<typeof getExchange>;
+      try {
+        ex = getExchange();
+      } catch {
+        return;
+      }
+      const viem = ex.client.getViemClient();
+      const pollOnce = async (source: LiveState["source"]) => {
+        try {
+          const block = await viem.getBlockNumber();
+          const results = await Promise.all(calls.map((c) => viem.call({ to: c.to, data: c.data, blockNumber: block }).then((r) => (r.data ?? "0x") as Hex)));
+          apply(results, block, source, null);
+        } catch {
+          /* transient RPC hiccup; next tick retries */
+        }
+      };
+      const startPoll = () => {
+        if (pollTimer) return;
+        void pollOnce("poll");
+        pollTimer = setInterval(() => void pollOnce("poll"), 2000);
+      };
       try {
         const st = await ex.client.getPerpState(pool);
+        if (stopped) return;
         const reactivity = createReactivity(ex.client);
         const watch = unwrap(
           await reactivity.watch({
@@ -92,10 +133,18 @@ export function useLivePit(pit: PitView | null) {
             onlyPushChanges: true,
             ethCalls: calls,
             onData: (n: ReactivityNotification) => {
+              stopHttp();
               const r = n.result;
               apply(r.simulationResults, null, "reactivity", { address: r.address, topic: r.topics[0] });
             },
-            onError: () => startPoll(),
+            onError: () => {
+              wsDelivered = false;
+              if (!httpTimer) {
+                void readOverHttp();
+                httpTimer = setInterval(() => void readOverHttp(), 2000);
+              }
+              startPoll();
+            },
           }),
         );
         if (stopped) {
@@ -105,9 +154,8 @@ export function useLivePit(pit: PitView | null) {
         unsub = async () => {
           await watch.unsubscribe();
         };
-        setState((s) => ({ ...s, source: "reactivity" }));
         // Reactivity fires on events; keep a slow heartbeat so a quiet market still shows a fresh block number.
-        pollTimer = setInterval(() => pollOnce("reactivity"), 10_000);
+        pollTimer = setInterval(() => void pollOnce("reactivity"), 10_000);
       } catch {
         startPoll();
       }
@@ -116,6 +164,7 @@ export function useLivePit(pit: PitView | null) {
     return () => {
       stopped = true;
       if (pollTimer) clearInterval(pollTimer);
+      if (httpTimer) clearInterval(httpTimer);
       unsub?.().catch(() => {});
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

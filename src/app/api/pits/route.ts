@@ -10,8 +10,13 @@ import { capRaw as toCapRaw, cleanName, fetchMarkets } from "@/lib/markets-serve
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const [live, settled, leaderboard] = await Promise.all([q.livePits().then(withJoins), q.settledPits().then(withJoins), q.leaderboard()]);
-  return NextResponse.json({ live, settled, leaderboard });
+  try {
+    const [live, settled, leaderboard] = await Promise.all([q.livePits().then(withJoins), q.settledPits().then(withJoins), q.leaderboard()]);
+    return NextResponse.json({ live, settled, leaderboard });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Could not read pits.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 interface CreateBody {
