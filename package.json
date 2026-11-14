@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "smoke": "NODE_USE_ENV_PROXY=1 tsx --import ./scripts/proxy-preload.mts scripts/smoke.ts",
+    "probe": "NODE_USE_ENV_PROXY=1 tsx --import ./scripts/proxy-preload.mts scripts/probe2.mts"
   },
   "repository": {
     "type": "git",
@@ -25,5 +26,7 @@
   },
   "devDependencies": {
     "https-proxy-agent": "^9.1.0"
-  }
+  },
+  "private": true,
+  "type": "module"
 }
