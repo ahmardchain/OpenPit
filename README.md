@@ -47,7 +47,6 @@ Env vars (`.env.example`):
 | `NEXT_PUBLIC_RPC_HTTP` / `NEXT_PUBLIC_RPC_WS` | Hideki RPC. The SDK **requires the WebSocket** endpoint or it fails its genesis check. |
 | `NEXT_PUBLIC_INDEXER` | dreamDEX Hideki GraphQL indexer (market rows). |
 | `NEXT_PUBLIC_APP_URL` | Public URL used in share links / OG images. |
-| `NEXT_PUBLIC_WC_PROJECT_ID` | WalletConnect project id for RainbowKit (optional for injected wallets). |
 | `SMOKE_PRIVATE_KEY`, `SMOKE_PRIVATE_KEY_2` | **Scripts only.** Test keys for `npm run smoke` / `npm run e2e`. Never used by the app, never committed. |
 
 Scripts:
