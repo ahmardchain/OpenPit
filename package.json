@@ -9,7 +9,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "e2e": "NODE_USE_ENV_PROXY=1 tsx --import ./scripts/proxy-preload.mjs scripts/e2e.ts",
+    "balances": "NODE_USE_ENV_PROXY=1 tsx scripts/balances.mts",
+    "typecheck": "tsc --noEmit -p ."
   },
   "repository": {
     "type": "git",
