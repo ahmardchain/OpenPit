@@ -23,6 +23,8 @@ export function notional(qty: bigint, price: bigint, baseDecimals: number): bigi
 export function fmtUsd(raw: bigint, digits = 2): string {
   const neg = raw < 0n;
   const abs = neg ? -raw : raw;
+  // Cheap assets (XRP, DOGE…) need more precision than a dollar-rounded display gives.
+  if (abs > 0n && abs < 10n * 10n ** 18n && digits < 4) digits = 4;
   const whole = abs / 10n ** 18n;
   const frac = abs % 10n ** 18n;
   const fracStr = frac.toString().padStart(18, "0").slice(0, digits);
