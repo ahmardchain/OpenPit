@@ -1,0 +1,29 @@
+{
+  "name": "openpit",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ahmardchain/openpit.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ahmardchain/openpit/issues"
+  },
+  "homepage": "https://github.com/ahmardchain/openpit#readme",
+  "dependencies": {
+    "@somnia-chain/markets-sdk": "^0.32.1",
+    "dotenv": "^18.0.10",
+    "tsx": "^4.23.15",
+    "viem": "^2.57.19"
+  },
+  "devDependencies": {
+    "https-proxy-agent": "^9.1.0"
+  }
+}
