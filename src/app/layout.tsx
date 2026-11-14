@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { WalletButton } from "@/components/wallet-button";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Button asChild size="sm">
                   <Link href="/new">Open a pit</Link>
                 </Button>
-                <ConnectButton chainStatus="icon" showBalance={false} accountStatus="avatar" />
+                <WalletButton chainStatus="icon" showBalance={false} accountStatus="avatar" />
               </div>
             </div>
           </header>

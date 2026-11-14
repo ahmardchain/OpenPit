@@ -55,7 +55,8 @@ Scripts:
 | command | what it does |
 | --- | --- |
 | `npm run dev` | Next.js dev server with a local D1 binding |
-| `npm run preview` / `deploy` | Build the Worker with OpenNext; serve it locally or deploy it |
+| `npm run build` | OpenNext build for Cloudflare (what Workers Builds runs) |
+| `npm run preview` / `deploy` | Build the Worker, then serve it locally or deploy it |
 | `npm run db:migrate:local` / `db:migrate` | Apply the D1 schema locally or to the remote database |
 | `npm run smoke` | Step 0: connects, lists markets, claims paper USDso if eligible, places a tiny IOC on BTC (fallback ETH), closes it, appends tx hashes to `EVIDENCE.md` |
 | `npm run e2e` | Full run against a running server: create pit → second wallet fades → bell → settle → both close. Appends everything to `EVIDENCE.md` |
@@ -74,28 +75,36 @@ If the claim reverts (it did for our fresh wallets, see EVIDENCE.md) or you got 
 ### Deploy on Cloudflare Workers
 
 OpenPit runs on Cloudflare Workers through [OpenNext](https://opennext.js.org/cloudflare). Pit metadata lives in **D1**
-(SQLite), bound as `DB` in `wrangler.jsonc`; the schema is `migrations/0001_init.sql`.
+(SQLite), bound as `DB` in `wrangler.jsonc`.
+
+**From the Cloudflare dashboard (Workers Builds, connected to this repo):**
+
+| setting | value |
+| --- | --- |
+| Build command | `npm run build` (runs `opennextjs-cloudflare build`, which runs `next build` itself) |
+| Deploy command | `npx wrangler deploy` |
+
+On the first deploy Wrangler creates the `openpit` D1 database and binds it; the app creates its tables on first use,
+so no manual migration is needed. Share links use the request's own host; set `NEXT_PUBLIC_APP_URL` only to force a
+different domain.
+
+**From your machine:**
 
 ```bash
 npx wrangler login
 ```
 
 ```bash
-npx wrangler d1 create openpit
-```
-
-Paste the printed `database_id` into `wrangler.jsonc`, set `NEXT_PUBLIC_APP_URL` there to your Workers URL, then:
-
-```bash
-npm run db:migrate
-```
-
-```bash
 npm run deploy
 ```
 
-Local development uses a local D1 copy: run `npm run db:migrate:local` once, then `npm run dev`.
-`npm run preview` builds the Worker and serves it with `wrangler dev`.
+Local development uses a local D1 copy: `npm run dev`. `npm run preview` builds the Worker and serves it with
+`wrangler dev`.
+
+**Bundle size.** The Worker is about 2.2 MB gzipped, under the 3 MB free-plan limit. To stay there, everything that
+only runs in the browser is kept out of the server bundle: RainbowKit's connect button, the dreamDEX SDK screens
+(create form, pit card) and the signer binding load with `next/dynamic({ ssr: false })`, and wallets are found through
+EIP-6963 discovery instead of bundled wallet SDKs.
 
 ## Architecture
 

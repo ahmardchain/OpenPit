@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { loadPit } from "@/lib/pit-view";
-import { PitClient } from "./pit-client";
+import { PitClientLoader } from "./pit-client-loader";
+import { appUrl } from "@/lib/app-url";
 
 export const dynamic = "force-dynamic";
 
-const APP = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const pit = await loadPit(id);
   if (!pit) return {};
   const title = `${pit.market}-PERP pit · creator ${pit.side.toUpperCase()} · ${pit.status === "live" ? "LIVE" : "settled"}`;
-  const img = `${APP}/api/og/${id}?v=${pit.status}-${pit.joins.length}`;
+  const img = `${await appUrl()}/api/og/${id}?v=${pit.status}-${pit.joins.length}`;
   return {
     title,
     description: pit.thesis || `Join Long or Fade with a real dreamDEX order. ${pit.durationMin} minutes, ${pit.capUsd} USDso cap.`,
@@ -25,5 +25,12 @@ export default async function PitPage({ params }: { params: Promise<{ id: string
   const { id } = await params;
   const pit = await loadPit(id);
   if (!pit) notFound();
-  return <PitClient initial={pit} appUrl={APP} />;
+  return (
+    <>
+      <h1 className="sr-only">
+        {pit.market}-PERP pit, creator {pit.side}
+      </h1>
+      <PitClientLoader initial={pit} appUrl={await appUrl()} />
+    </>
+  );
 }

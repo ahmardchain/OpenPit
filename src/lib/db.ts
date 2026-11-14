@@ -51,10 +51,35 @@ export interface JoinRow {
   final_roc_bps: number | null;
 }
 
+// Mirrors migrations/0001_init.sql. Run once per isolate so a freshly created database needs no manual migration.
+const SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS pits (
+    id TEXT PRIMARY KEY, creator TEXT NOT NULL, market TEXT NOT NULL, pool TEXT NOT NULL, margin_bank TEXT NOT NULL,
+    base_decimals INTEGER NOT NULL, tick_size TEXT NOT NULL, lot_size TEXT NOT NULL, min_quantity TEXT NOT NULL,
+    side TEXT NOT NULL, duration_min INTEGER NOT NULL, cap_usd REAL NOT NULL, thesis TEXT NOT NULL DEFAULT '',
+    intent_json TEXT NOT NULL, signature TEXT NOT NULL, open_tx TEXT NOT NULL UNIQUE,
+    start_block INTEGER NOT NULL, start_mark TEXT NOT NULL, start_ts INTEGER NOT NULL, end_ts INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'live', end_block INTEGER, end_mark TEXT, settled_ts INTEGER, winner TEXT, parent_id TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS joins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, pit_id TEXT NOT NULL REFERENCES pits(id), wallet TEXT NOT NULL, side TEXT NOT NULL,
+    qty TEXT NOT NULL, entry TEXT NOT NULL, notional TEXT NOT NULL, tx_hash TEXT NOT NULL UNIQUE, block_number INTEGER NOT NULL,
+    ts INTEGER NOT NULL, close_tx TEXT, final_pnl TEXT, final_roc_bps REAL
+  )`,
+  `CREATE INDEX IF NOT EXISTS joins_pit ON joins(pit_id)`,
+  `CREATE INDEX IF NOT EXISTS pits_status ON pits(status, end_ts)`,
+];
+let schemaReady: Promise<unknown> | null = null;
+
 async function db(): Promise<D1Database> {
   const { env } = await getCloudflareContext({ async: true });
   const d1 = (env as { DB?: D1Database }).DB;
-  if (!d1) throw new Error("D1 binding `DB` is missing — check wrangler.jsonc and run `npm run db:migrate:local`.");
+  if (!d1) throw new Error("D1 binding `DB` is missing — check the d1_databases entry in wrangler.jsonc.");
+  schemaReady ??= d1.batch(SCHEMA.map((s) => d1.prepare(s))).catch((e) => {
+    schemaReady = null;
+    throw e;
+  });
+  await schemaReady;
   return d1;
 }
 

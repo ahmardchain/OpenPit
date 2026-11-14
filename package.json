@@ -7,7 +7,7 @@
     "smoke": "NODE_USE_ENV_PROXY=1 tsx --import ./scripts/proxy-preload.mjs scripts/smoke.ts",
     "probe": "NODE_USE_ENV_PROXY=1 tsx --import ./scripts/proxy-preload.mjs scripts/probe2.mts",
     "dev": "next dev",
-    "build": "next build",
+    "build": "opennextjs-cloudflare build",
     "start": "next start",
     "lint": "eslint",
     "e2e": "NODE_USE_ENV_PROXY=1 tsx --import ./scripts/proxy-preload.mjs scripts/e2e.ts",
@@ -18,7 +18,8 @@
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "db:migrate:local": "wrangler d1 migrations apply openpit --local",
     "db:migrate": "wrangler d1 migrations apply openpit --remote",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "build:next": "next build"
   },
   "repository": {
     "type": "git",

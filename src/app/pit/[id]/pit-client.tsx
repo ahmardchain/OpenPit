@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { WalletButton } from "@/components/wallet-button";
 import { useAccount } from "wagmi";
 import type { PitView } from "@/lib/pit-view";
 import { useLivePit } from "@/lib/use-live-pit";
@@ -176,7 +176,7 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
         <ErrorBox error={trade.error} onClose={() => trade.setError(null)} />
         {apiError && <ErrorBox error={new Error(apiError)} onClose={() => setApiError(null)} />}
         {!address ? (
-          <ConnectButton />
+          <WalletButton />
         ) : pit.status === "live" && !ended ? (
           <>
             <div className="grid grid-cols-2 gap-3">

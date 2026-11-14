@@ -1,37 +1,29 @@
 "use client";
-import "@rainbow-me/rainbowkit/styles.css";
-import { RainbowKitProvider, getDefaultConfig, lightTheme } from "@rainbow-me/rainbowkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { WagmiProvider, useWalletClient } from "wagmi";
+import dynamic from "next/dynamic";
+import { useState } from "react";
+import { WagmiProvider, createConfig, http } from "wagmi";
 import { hideki } from "@/lib/chain";
-import { getExchange } from "@/lib/markets";
 
-const config = getDefaultConfig({
-  appName: "OpenPit",
-  projectId: process.env.NEXT_PUBLIC_WC_PROJECT_ID || "openpit-local",
+// Wallets are discovered through EIP-6963 (MetaMask, Rabby, Brave, OKX and other browser wallets announce
+// themselves), so no wallet SDKs are bundled. RainbowKit's modal lists every discovered wallet.
+const config = createConfig({
   chains: [hideki],
+  connectors: [],
+  multiInjectedProviderDiscovery: true,
+  transports: { [hideki.id]: http(hideki.rpcUrls.default.http[0]) },
   ssr: true,
 });
 
-/** Binds the connected wallet to the SDK trader so orders are signed by the user, never by a server. */
-function SignerBinding() {
-  const { data: walletClient } = useWalletClient();
-  useEffect(() => {
-    getExchange().setSigner(walletClient ? { walletClient } : {});
-  }, [walletClient]);
-  return null;
-}
+const SignerBinding = dynamic(() => import("@/components/signer-binding"), { ssr: false });
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [qc] = useState(() => new QueryClient());
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={qc}>
-        <RainbowKitProvider theme={lightTheme({ accentColor: "#1f5eff", accentColorForeground: "#ffffff", borderRadius: "medium" })} initialChain={hideki}>
-          <SignerBinding />
-          {children}
-        </RainbowKitProvider>
+        <SignerBinding />
+        {children}
       </QueryClientProvider>
     </WagmiProvider>
   );
