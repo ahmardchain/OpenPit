@@ -32,9 +32,9 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
 
   return new ImageResponse(
     (
-      <div style={{ width: 1200, height: 630, display: "flex", flexDirection: "column", background: "linear-gradient(135deg,#09090b 0%,#1c1917 60%,#451a03 100%)", color: "#fafafa", padding: 56, fontFamily: "sans-serif" }}>
+      <div style={{ width: 1200, height: 630, display: "flex", flexDirection: "column", background: "#0e0d0b", color: "#f3efe8", padding: 56, fontFamily: "sans-serif" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ display: "flex", width: 36, height: 36, borderRadius: 10, background: "#f59e0b" }} />
+          <div style={{ display: "flex", width: 36, height: 36, borderRadius: 10, background: "#f5a524" }} />
           <div style={{ display: "flex", fontSize: 34, fontWeight: 800 }}>OpenPit</div>
           <div style={{ display: "flex", marginLeft: "auto", fontSize: 24, padding: "6px 16px", borderRadius: 999, background: settled ? "#27272a" : "#f59e0b22", color: settled ? "#d4d4d8" : "#fcd34d" }}>{settled ? "SETTLED" : "● LIVE"}</div>
         </div>

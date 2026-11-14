@@ -9,6 +9,9 @@ import { useTrade } from "@/lib/use-trade";
 import { fmtPct, fmtUsd } from "@/lib/scoring";
 import { addrUrl, short, txUrl } from "@/lib/chain";
 import { Card, Countdown, ErrorBox, Pill } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { SpotlightCard, PulseDot } from "@/components/ui/effects";
+import { ExternalLink, Share2, RotateCcw, Link2 } from "lucide-react";
 import { Scoreboard, scoreJoins } from "@/components/scoreboard";
 import { MarginStatus } from "@/components/margin-status";
 
@@ -99,19 +102,19 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-extrabold">{pit.market}-PERP</h1>
+            <h1 className="text-2xl font-bold">{pit.market}-PERP</h1>
             <Pill tone={pit.side === "long" ? "green" : "red"}>creator {pit.side.toUpperCase()}</Pill>
-            {pit.status === "live" ? <Pill tone="amber">● live</Pill> : <Pill>settled</Pill>}
+            {pit.status === "live" ? <Pill tone="amber"><PulseDot className="mr-1" /> live</Pill> : <Pill>settled</Pill>}
           </div>
-          {pit.thesis && <p className="mt-1 text-zinc-300">“{pit.thesis}”</p>}
-          <p className="mt-1 text-xs text-zinc-500">
+          {pit.thesis && <p className="mt-1 text-fg/90">“{pit.thesis}”</p>}
+          <p className="mt-1 text-xs text-muted">
             by{" "}
             <a className="font-mono hover:underline" href={addrUrl(pit.creator)} target="_blank" rel="noreferrer">
               {short(pit.creator)}
             </a>{" "}
             · cap {fmtUsd(BigInt(Math.round(pit.capUsd * 1e6)) * 10n ** 12n, 0)} per trader · {pit.durationMin} min ·{" "}
-            <a className="hover:underline" href={txUrl(pit.openTx)} target="_blank" rel="noreferrer">
-              opening order ↗
+            <a className="inline-flex items-center gap-0.5 hover:underline" href={txUrl(pit.openTx)} target="_blank" rel="noreferrer">
+              opening order <ExternalLink className="size-3" />
             </a>{" "}
             · intent signed (EIP-191)
           </p>
@@ -120,44 +123,48 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
           {pit.status === "live" ? (
             <>
               <Countdown endTs={pit.endTs} onZero={settle} />
-              <div className="text-[10px] uppercase text-zinc-500">until the bell</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted">until the bell</div>
             </>
           ) : (
-            <div className="text-sm text-zinc-400">🔔 bell rang · block {pit.endBlock}</div>
+            <div className="text-sm text-muted">🔔 bell rang · block {pit.endBlock}</div>
           )}
         </div>
       </div>
 
       {pit.status === "settled" && (
-        <Card className="border-amber-500/40 bg-amber-500/10">
+        <SpotlightCard className="border-accent p-4">
           {winner && winner.roc !== null ? (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <div className="text-xs uppercase text-amber-300">Winner by return-on-cap</div>
-                <div className="text-xl font-bold">
-                  🏆 <span className="font-mono">{short(winner.wallet)}</span> <span className={winner.roc >= 0 ? "text-emerald-300" : "text-rose-300"}>{fmtPct(winner.roc)}</span>
-                  <span className="ml-2 text-sm text-zinc-400">{winner.pnl !== null && fmtUsd(winner.pnl)} on a {fmtUsd(BigInt(Math.round(pit.capUsd * 1e6)) * 10n ** 12n, 0)} cap</span>
+                <div className="text-xs uppercase tracking-wider text-accent">Winner by return-on-cap</div>
+                <div className="display text-xl font-bold">
+                  🏆 <span className="font-mono">{short(winner.wallet)}</span> <span className={winner.roc >= 0 ? "text-long" : "text-fade"}>{fmtPct(winner.roc)}</span>
+                  <span className="ml-2 font-body text-sm text-muted">{winner.pnl !== null && fmtUsd(winner.pnl)} on a {fmtUsd(BigInt(Math.round(pit.capUsd * 1e6)) * 10n ** 12n, 0)} cap</span>
                 </div>
               </div>
               <div className="flex gap-2">
-                <a href={shareUrl} target="_blank" rel="noreferrer" className="rounded-lg bg-zinc-100 px-3 py-1.5 text-sm font-semibold text-zinc-900">
-                  Share on X
-                </a>
-                <Link href={rematchUrl} className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-semibold text-zinc-950">
-                  Rematch
-                </Link>
+                <Button asChild variant="secondary" size="sm">
+                  <a href={shareUrl} target="_blank" rel="noreferrer">
+                    <Share2 /> Share on X
+                  </a>
+                </Button>
+                <Button asChild size="sm">
+                  <Link href={rematchUrl}>
+                    <RotateCcw /> Rematch
+                  </Link>
+                </Button>
               </div>
             </div>
           ) : (
             <div>No scored joins.</div>
           )}
-        </Card>
+        </SpotlightCard>
       )}
 
       <Card>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-bold">Live card</h2>
-          <span className="text-[10px] uppercase text-zinc-500">
+          <h2 className="text-base font-bold">Live card</h2>
+          <span className="text-[10px] uppercase tracking-wider text-muted">
             {live.source === "reactivity" ? "● somnia reactivity" : live.source === "poll" ? "○ 2s poll" : "connecting…"} · {live.updates} updates
           </span>
         </div>
@@ -173,38 +180,42 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
         ) : pit.status === "live" && !ended ? (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <button disabled={!!trade.busy} onClick={() => join(pit.side)} className="rounded-2xl bg-emerald-400 py-5 text-2xl font-black text-zinc-950 disabled:opacity-50">
+              <Button variant="long" size="xl" className="h-24 flex-col gap-0" disabled={!!trade.busy} onClick={() => join(pit.side)}>
                 {pit.side === "long" ? "LONG" : "SHORT"}
-                <div className="text-xs font-semibold opacity-70">with the creator</div>
-              </button>
-              <button disabled={!!trade.busy} onClick={() => join(fadeSide)} className="rounded-2xl bg-rose-400 py-5 text-2xl font-black text-zinc-950 disabled:opacity-50">
+                <span className="text-xs font-semibold opacity-70">with the creator</span>
+              </Button>
+              <Button variant="fade" size="xl" className="h-24 flex-col gap-0" disabled={!!trade.busy} onClick={() => join(fadeSide)}>
                 FADE
-                <div className="text-xs font-semibold opacity-70">go {fadeSide}</div>
-              </button>
+                <span className="text-xs font-semibold opacity-70">go {fadeSide}</span>
+              </Button>
             </div>
-            <p className="text-center text-xs text-zinc-500">{trade.busy ?? `Sizes a crossing IOC for up to ${pit.capUsd} USDso, clamped by getMaxPerpOrderSize. Your wallet signs; the server only verifies the hash.`}</p>
+            <p className="text-center text-xs text-muted">{trade.busy ?? `Sizes a crossing IOC for up to ${pit.capUsd} USDso, clamped by getMaxPerpOrderSize. Your wallet signs; the server only verifies the hash.`}</p>
           </>
         ) : (
           <div className="space-y-2">
             {myPos && myPos.size !== 0n ? (
-              <button disabled={!!trade.busy} onClick={close} className="w-full rounded-2xl bg-zinc-100 py-4 text-lg font-bold text-zinc-900 disabled:opacity-50">
+              <Button variant="secondary" size="lg" className="w-full" disabled={!!trade.busy} onClick={close}>
                 {trade.busy ?? "Close your position (reduce-only IOC)"}
-              </button>
+              </Button>
             ) : (
-              <p className="text-center text-sm text-zinc-500">{myJoin ? "Your position on this market is flat." : "You did not trade in this pit."}</p>
+              <p className="text-center text-sm text-muted">{myJoin ? "Your position on this market is flat." : "You did not trade in this pit."}</p>
             )}
             <div className="flex justify-center gap-2">
-              <a href={shareUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm font-semibold hover:bg-zinc-800">
-                Share on X
-              </a>
-              <Link href={rematchUrl} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm font-semibold hover:bg-zinc-800">
-                Rematch
-              </Link>
+              <Button asChild variant="outline" size="sm">
+                <a href={shareUrl} target="_blank" rel="noreferrer">
+                  <Share2 /> Share on X
+                </a>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <Link href={rematchUrl}>
+                  <RotateCcw /> Rematch
+                </Link>
+              </Button>
             </div>
           </div>
         )}
         {lastTx && (
-          <a href={txUrl(lastTx)} target="_blank" rel="noreferrer" className="block text-center text-xs text-amber-300 underline">
+          <a href={txUrl(lastTx)} target="_blank" rel="noreferrer" className="block text-center text-xs text-accent underline">
             your last tx ↗
           </a>
         )}
@@ -212,12 +223,14 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
 
       {pit.status === "live" && (
         <div className="flex justify-center gap-2">
-          <a href={shareUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm font-semibold hover:bg-zinc-800">
-            Share on X
-          </a>
-          <button onClick={() => navigator.clipboard.writeText(pitUrl)} className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm font-semibold hover:bg-zinc-800">
-            Copy link
-          </button>
+          <Button asChild variant="outline" size="sm">
+            <a href={shareUrl} target="_blank" rel="noreferrer">
+              <Share2 /> Share on X
+            </a>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigator.clipboard.writeText(pitUrl)}>
+            <Link2 /> Copy link
+          </Button>
         </div>
       )}
     </div>

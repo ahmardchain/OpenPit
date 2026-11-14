@@ -11,6 +11,8 @@ import { previewSize, useTrade } from "@/lib/use-trade";
 import { fmtQty, fmtUsd } from "@/lib/scoring";
 import { Card, ErrorBox, Spinner } from "@/components/ui";
 import { MarginStatus } from "@/components/margin-status";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type Step = "form" | "signing" | "ordering" | "confirming" | "registering" | "done";
 
@@ -94,20 +96,20 @@ function NewPitForm() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-extrabold">Open a pit {parentId && <span className="text-sm font-normal text-zinc-400">(rematch)</span>}</h1>
-      <p className="text-sm text-zinc-400">You sign the pit intent, then place a real opening order from your wallet. The pit goes live only after that order is confirmed and verified on-chain.</p>
+      <h1 className="text-2xl font-bold">Open a pit {parentId && <span className="font-body text-sm font-normal text-muted">(rematch)</span>}</h1>
+      <p className="text-sm text-muted">You sign the pit intent, then place a real opening order from your wallet. The pit goes live only after that order is confirmed and verified on-chain.</p>
 
       <Card className="space-y-4">
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase text-zinc-400">Market</label>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">Market</label>
           {!markets ? (
             <Spinner />
           ) : (
             <div className="flex flex-wrap gap-2">
               {markets.map((m) => (
-                <button key={m.symbol} onClick={() => setSymbol(m.symbol)} className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${symbol === m.symbol ? "border-amber-500 bg-amber-500/15 text-amber-200" : "border-zinc-700 hover:bg-zinc-800"}`}>
+                <button key={m.symbol} onClick={() => setSymbol(m.symbol)} className={cn("rounded-xl border px-3 py-1.5 text-sm font-semibold transition-all active:scale-95", symbol === m.symbol ? "border-accent bg-surface-2 text-accent" : "border-line bg-surface hover:border-muted")}>
                   {m.symbol}
-                  {m.markPrice && <span className="ml-1 text-xs font-normal text-zinc-400">{fmtUsd(BigInt(m.markPrice), 0)}</span>}
+                  {m.markPrice && <span className="ml-1 tabular text-xs font-normal text-muted">{fmtUsd(BigInt(m.markPrice), 0)}</span>}
                 </button>
               ))}
             </div>
@@ -115,48 +117,48 @@ function NewPitForm() {
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase text-zinc-400">Your call</label>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">Your call</label>
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setSide("long")} className={`rounded-xl border py-3 text-lg font-bold ${side === "long" ? "border-emerald-400 bg-emerald-500/20 text-emerald-200" : "border-zinc-700"}`}>
+            <button onClick={() => setSide("long")} className={cn("rounded-2xl border py-4 text-xl font-black transition-all active:scale-[0.98]", side === "long" ? "border-long bg-long text-accent-ink" : "border-line text-muted hover:border-muted")}>
               LONG
             </button>
-            <button onClick={() => setSide("short")} className={`rounded-xl border py-3 text-lg font-bold ${side === "short" ? "border-rose-400 bg-rose-500/20 text-rose-200" : "border-zinc-700"}`}>
+            <button onClick={() => setSide("short")} className={cn("rounded-2xl border py-4 text-xl font-black transition-all active:scale-[0.98]", side === "short" ? "border-fade bg-fade text-accent-ink" : "border-line text-muted hover:border-muted")}>
               SHORT
             </button>
           </div>
-          <p className="mt-1 text-xs text-zinc-500">Joiners pick LONG (with you) or FADE (against you).</p>
+          <p className="mt-1 text-xs text-muted">Joiners pick LONG (with you) or FADE (against you).</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase text-zinc-400">Duration</label>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">Duration</label>
             <div className="flex gap-2">
               {[5, 15, 30].map((d) => (
-                <button key={d} onClick={() => setDuration(d)} className={`flex-1 rounded-lg border py-1.5 text-sm font-semibold ${duration === d ? "border-amber-500 bg-amber-500/15 text-amber-200" : "border-zinc-700"}`}>
+                <button key={d} onClick={() => setDuration(d)} className={cn("flex-1 rounded-xl border py-1.5 text-sm font-semibold transition-all active:scale-95", duration === d ? "border-accent bg-surface-2 text-accent" : "border-line hover:border-muted")}>
                   {d}m
                 </button>
               ))}
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase text-zinc-400">Cap per trader (USDso)</label>
-            <input type="number" min={1} max={100000} value={cap} onChange={(e) => setCap(Number(e.target.value))} className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 tabular" />
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">Cap per trader (USDso)</label>
+            <input type="number" min={1} max={100000} value={cap} onChange={(e) => setCap(Number(e.target.value))} className="w-full rounded-xl border border-line bg-bg px-3 py-2 tabular outline-none focus:border-accent" />
           </div>
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase text-zinc-400">Thesis (optional, one line)</label>
-          <input maxLength={140} value={thesis} onChange={(e) => setThesis(e.target.value)} placeholder="e.g. Funding flipped negative; shorts are crowded into the close" className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5" />
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted">Thesis (optional, one line)</label>
+          <input maxLength={140} value={thesis} onChange={(e) => setThesis(e.target.value)} placeholder="e.g. Funding flipped negative; shorts are crowded into the close" className="w-full rounded-xl border border-line bg-bg px-3 py-2 outline-none focus:border-accent" />
         </div>
 
         {market && <MarginStatus marginBank={market.marginBank} />}
 
         {preview && market && (
-          <div className="rounded-xl bg-zinc-950 p-3 text-xs text-zinc-400">
-            Opening order: <b className="text-zinc-200">{side.toUpperCase()}</b> {fmtQty(preview.qty, market.baseDecimals)} {market.symbol} IOC (≈{fmtUsd((preview.qty * preview.mark) / 10n ** BigInt(market.baseDecimals))} of {fmtUsd(capRaw, 0)} cap) at mark {fmtUsd(preview.mark)}
-            {!preview.priceable && <span className="ml-2 text-rose-300">mark price stale</span>}
-            {preview.belowMin && <span className="ml-2 text-rose-300">below this market&apos;s minimum size — raise the cap</span>}
-            {preview.priceable && !preview.belowMin && !preview.placeable && <span className="ml-2 text-rose-300">not placeable: {preview.limitedBy}</span>}
+          <div className="rounded-xl border border-line bg-bg p-3 text-xs text-muted">
+            Opening order: <b className="text-fg">{side.toUpperCase()}</b> {fmtQty(preview.qty, market.baseDecimals)} {market.symbol} IOC (≈{fmtUsd((preview.qty * preview.mark) / 10n ** BigInt(market.baseDecimals))} of {fmtUsd(capRaw, 0)} cap) at mark {fmtUsd(preview.mark)}
+            {!preview.priceable && <span className="ml-2 text-fade">mark price stale</span>}
+            {preview.belowMin && <span className="ml-2 text-fade">below this market&apos;s minimum size — raise the cap</span>}
+            {preview.priceable && !preview.belowMin && !preview.placeable && <span className="ml-2 text-fade">not placeable: {preview.limitedBy}</span>}
           </div>
         )}
 
@@ -166,20 +168,16 @@ function NewPitForm() {
         {!address ? (
           <ConnectButton />
         ) : (
-          <button
-            disabled={step !== "form" || !market || !preview?.placeable}
-            onClick={create}
-            className={`w-full rounded-xl py-3 text-lg font-bold text-zinc-950 disabled:opacity-50 ${side === "long" ? "bg-emerald-400" : "bg-rose-400"}`}
-          >
+          <Button variant={side === "long" ? "long" : "fade"} size="lg" className="w-full" disabled={step !== "form" || !market || !preview?.placeable} onClick={create}>
             {step === "form" && `Sign intent & open ${side.toUpperCase()}`}
             {step === "signing" && "Sign the pit intent in your wallet…"}
             {step === "ordering" && (trade.busy ?? "Placing opening order…")}
             {step === "registering" && "Verifying tx on-chain…"}
             {step === "done" && "Pit is live!"}
-          </button>
+          </Button>
         )}
         {openTx && (
-          <a href={txUrl(openTx)} target="_blank" rel="noreferrer" className="block text-center text-xs text-amber-300 underline">
+          <a href={txUrl(openTx)} target="_blank" rel="noreferrer" className="block text-center text-xs text-accent underline">
             opening order tx ↗
           </a>
         )}
@@ -190,7 +188,7 @@ function NewPitForm() {
 
 export default function NewPit() {
   return (
-    <Suspense fallback={<div className="p-6 text-zinc-400">Loading…</div>}>
+    <Suspense fallback={<div className="p-6 text-muted">Loading…</div>}>
       <NewPitForm />
     </Suspense>
   );
