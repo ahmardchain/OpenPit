@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import type { Address, Hash } from "viem";
 import { q } from "@/lib/db";
-import { toView } from "@/lib/pit-view";
-import { verifyOrderTx } from "@/lib/server-chain";
+import { loadPit } from "@/lib/pit-view";
+import { serverClient, verifyOrderTx } from "@/lib/server-chain";
 
 export const dynamic = "force-dynamic";
 
@@ -12,27 +12,27 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const pit = q.getPit(id);
+  const pit = await q.getPit(id);
   if (!pit) return NextResponse.json({ error: "not found" }, { status: 404 });
   const { wallet, side, txHash, closeOf } = (await req.json()) as { wallet: Address; side: "long" | "short"; txHash: Hash; closeOf?: number };
   if (!wallet || !txHash) return NextResponse.json({ error: "missing fields" }, { status: 400 });
 
   // A "close" is a reduce order recorded against an existing join (after the bell).
   if (closeOf) {
-    const j = q.joins(id).find((x) => x.id === closeOf && x.wallet.toLowerCase() === wallet.toLowerCase());
+    const j = (await q.joins(id)).find((x) => x.id === closeOf && x.wallet.toLowerCase() === wallet.toLowerCase());
     if (!j) return NextResponse.json({ error: "join not found" }, { status: 404 });
     try {
       await verifyOrderTx(txHash, wallet, pit.pool as Address, pit.margin_bank as Address);
     } catch (e) {
       return NextResponse.json({ error: (e as Error).message }, { status: 400 });
     }
-    q.setCloseTx(j.id, txHash);
-    return NextResponse.json({ pit: toView(pit, q.joins(id)) });
+    await q.setCloseTx(j.id, txHash);
+    return NextResponse.json({ pit: await loadPit(id) });
   }
 
   if (pit.status !== "live" || Date.now() / 1000 >= pit.end_ts) return NextResponse.json({ error: "the bell has rung — this pit is closed to new joins" }, { status: 409 });
   if (side !== "long" && side !== "short") return NextResponse.json({ error: "side must be long or short" }, { status: 400 });
-  if (q.joinByTx(txHash)) return NextResponse.json({ error: "that tx is already recorded" }, { status: 409 });
+  if (await q.joinByTx(txHash)) return NextResponse.json({ error: "that tx is already recorded" }, { status: 409 });
 
   let v;
   try {
@@ -54,9 +54,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     qty = (capRaw * oneBase) / v.avgFill;
     notional = (qty * v.avgFill) / oneBase;
   }
-  const block = await (await import("@/lib/server-chain")).serverClient.getBlock({ blockNumber: BigInt(v.blockNumber) });
+  const block = await serverClient.getBlock({ blockNumber: BigInt(v.blockNumber) });
 
-  q.insertJoin({
+  await q.insertJoin({
     pit_id: id,
     wallet,
     side,
@@ -67,5 +67,5 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     block_number: v.blockNumber,
     ts: Number(block.timestamp),
   });
-  return NextResponse.json({ pit: toView(pit, q.joins(id)) });
+  return NextResponse.json({ pit: await loadPit(id) });
 }

@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { Flame } from "lucide-react";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Button } from "@/components/ui/button";
+import { Wordmark } from "@/components/logo";
 
 export const metadata: Metadata = {
   title: "OpenPit — crowd pits on dreamDEX perps",
@@ -23,11 +23,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <header className="sticky top-0 z-20 border-b border-line bg-bg/90 backdrop-blur">
             <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
-              <Link href="/" className="display flex items-center gap-2 text-lg font-bold">
-                <span className="grid size-7 place-items-center rounded-lg bg-accent">
-                  <Flame className="size-4 text-accent-ink" />
-                </span>
-                OpenPit
+              <Link href="/" className="flex items-center gap-2">
+                <Wordmark />
                 <span className="hidden rounded-md border border-line px-1.5 py-0.5 font-body text-[10px] font-medium uppercase tracking-wider text-muted sm:inline">Hideki testnet</span>
               </Link>
               <div className="flex items-center gap-2">

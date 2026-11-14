@@ -1,4 +1,4 @@
-import type { JoinRow, PitRow } from "./db";
+import { q, type JoinRow, type PitRow } from "./db";
 
 /** JSON-safe shape sent to the browser. */
 export interface PitView {
@@ -89,4 +89,15 @@ export function toView(p: PitRow, joins: JoinRow[]): PitView {
       finalRocBps: j.final_roc_bps,
     })),
   };
+}
+
+/** Load a pit with its joins, or undefined. */
+export async function loadPit(id: string): Promise<PitView | undefined> {
+  const p = await q.getPit(id);
+  if (!p) return undefined;
+  return toView(p, await q.joins(id));
+}
+
+export async function withJoins(rows: PitRow[]): Promise<PitView[]> {
+  return Promise.all(rows.map(async (p) => toView(p, await q.joins(p.id))));
 }

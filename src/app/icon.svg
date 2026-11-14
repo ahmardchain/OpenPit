@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="OpenPit">
+  <!-- The pit: a flat amber ring (the arena) with the bell-notch at the top and the long/fade split inside. -->
+  <rect width="64" height="64" rx="16" fill="#f5a524"/>
+  <circle cx="32" cy="34" r="17" fill="none" stroke="#1a1206" stroke-width="5"/>
+  <rect x="28.5" y="8" width="7" height="12" rx="2" fill="#1a1206"/>
+  <path d="M32 24 L32 44" stroke="#1a1206" stroke-width="5" stroke-linecap="round"/>
+  <path d="M23 40 L32 24" stroke="#1a1206" stroke-width="5" stroke-linecap="round"/>
+  <path d="M41 40 L32 24" stroke="#1a1206" stroke-width="5" stroke-linecap="round"/>
+</svg>

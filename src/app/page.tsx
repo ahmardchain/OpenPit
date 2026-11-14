@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Droplets, Trophy } from "lucide-react";
 import { q } from "@/lib/db";
-import { toView } from "@/lib/pit-view";
+import { withJoins } from "@/lib/pit-view";
 import { PitCard } from "@/components/pit-card";
 import { fmtPct, fmtUsd } from "@/lib/scoring";
 import { short } from "@/lib/chain";
@@ -10,10 +10,8 @@ import { BlurFade, ShinyText } from "@/components/ui/effects";
 
 export const dynamic = "force-dynamic";
 
-export default function Home() {
-  const live = q.livePits().map((p) => toView(p, q.joins(p.id)));
-  const settled = q.settledPits(8).map((p) => toView(p, q.joins(p.id)));
-  const board = q.leaderboard(10);
+export default async function Home() {
+  const [live, settled, board] = await Promise.all([q.livePits().then(withJoins), q.settledPits(8).then(withJoins), q.leaderboard(10)]);
 
   return (
     <div className="space-y-10">

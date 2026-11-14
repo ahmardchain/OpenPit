@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Address } from "viem";
 import { q } from "@/lib/db";
-import { toView } from "@/lib/pit-view";
+import { loadPit, toView } from "@/lib/pit-view";
 import { headBlock, readMark, serverClient } from "@/lib/server-chain";
 import { returnOnCapBps, sessionPnl } from "@/lib/scoring";
 
@@ -14,9 +14,9 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const pit = q.getPit(id);
+  const pit = await q.getPit(id);
   if (!pit) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (pit.status === "settled") return NextResponse.json({ pit: toView(pit, q.joins(id)) });
+  if (pit.status === "settled") return NextResponse.json({ pit: toView(pit, await q.joins(id)) });
 
   const head = await headBlock();
   const headBlk = await serverClient.getBlock({ blockNumber: head });
@@ -37,12 +37,12 @@ export async function POST(_: Request, ctx: { params: Promise<{ id: string }> })
   if (!mark.ok) return NextResponse.json({ error: "mark price unavailable; try again shortly" }, { status: 503 });
 
   const capRaw = BigInt(Math.round(pit.cap_usd * 1e6)) * 10n ** 12n;
-  const joins = q.joins(id);
+  const joins = await q.joins(id);
   const results = joins.map((j) => {
     const pnl = sessionPnl(j.side, BigInt(j.qty), BigInt(j.entry), mark.price, pit.base_decimals);
     return { id: j.id, wallet: j.wallet, pnl: pnl.toString(), roc: returnOnCapBps(pnl, capRaw) };
   });
   const winner = results.length ? results.reduce((a, b) => (b.roc > a.roc ? b : a)).wallet : null;
-  q.settlePit(id, Number(endBlock), mark.price.toString(), winner, results);
-  return NextResponse.json({ pit: toView(q.getPit(id)!, q.joins(id)) });
+  await q.settlePit(id, Number(endBlock), mark.price.toString(), winner, results);
+  return NextResponse.json({ pit: await loadPit(id) });
 }

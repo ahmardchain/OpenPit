@@ -26,7 +26,7 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
 
   const refresh = useCallback(async () => {
     const r = await fetch(`/api/pits/${pit.id}`, { cache: "no-store" });
-    if (r.ok) setPit((await r.json()).pit);
+    if (r.ok) setPit(((await r.json()) as { pit: PitView }).pit);
   }, [pit.id]);
 
   // Other people's joins land in the DB; pick them up every few seconds.
@@ -41,9 +41,9 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
     setSettling(true);
     try {
       const r = await fetch(`/api/pits/${pit.id}/settle`, { method: "POST" });
-      const j = await r.json();
-      if (r.ok) setPit(j.pit);
-      else if (r.status !== 409) setApiError(j.error);
+      const j = (await r.json()) as { pit?: PitView; error?: string };
+      if (r.ok && j.pit) setPit(j.pit);
+      else if (r.status !== 409) setApiError(j.error ?? "settle failed");
     } finally {
       setSettling(false);
     }
@@ -64,8 +64,8 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
       const { hash } = await trade.openFor(market, side === "long", pit.capUsd);
       setLastTx(hash);
       const r = await fetch(`/api/pits/${pit.id}/join`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: address, side, txHash: hash }) });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error);
+      const j = (await r.json()) as { pit?: PitView; error?: string };
+      if (!r.ok || !j.pit) throw new Error(j.error ?? "join rejected");
       setPit(j.pit);
     } catch (e) {
       if (!trade.error) setApiError((e as Error).message);
@@ -79,7 +79,7 @@ export function PitClient({ initial, appUrl }: { initial: PitView; appUrl: strin
       setLastTx(hash);
       if (myJoin) {
         const r = await fetch(`/api/pits/${pit.id}/join`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: address, side: myJoin.side, txHash: hash, closeOf: myJoin.id }) });
-        if (r.ok) setPit((await r.json()).pit);
+        if (r.ok) setPit(((await r.json()) as { pit: PitView }).pit);
       }
     } catch (e) {
       if (!trade.error) setApiError((e as Error).message);

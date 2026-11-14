@@ -1,6 +1,8 @@
-import Database from "better-sqlite3";
-import fs from "node:fs";
-import path from "node:path";
+/**
+ * Pit metadata store on Cloudflare D1 (SQLite). The same binding serves `next dev` (local miniflare D1 via
+ * initOpenNextCloudflareForDev) and production Workers. Schema lives in migrations/0001_init.sql.
+ */
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export type PitStatus = "live" | "settled";
 
@@ -49,91 +51,70 @@ export interface JoinRow {
   final_roc_bps: number | null;
 }
 
-let db: Database.Database | null = null;
-
-export function getDb() {
-  if (db) return db;
-  const file = process.env.OPENPIT_DB ?? path.join(process.cwd(), "data", "openpit.db");
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  db = new Database(file);
-  db.pragma("journal_mode = WAL");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS pits (
-      id TEXT PRIMARY KEY, creator TEXT NOT NULL, market TEXT NOT NULL, pool TEXT NOT NULL, margin_bank TEXT NOT NULL,
-      base_decimals INTEGER NOT NULL, tick_size TEXT NOT NULL, lot_size TEXT NOT NULL, min_quantity TEXT NOT NULL,
-      side TEXT NOT NULL, duration_min INTEGER NOT NULL, cap_usd REAL NOT NULL, thesis TEXT NOT NULL DEFAULT '',
-      intent_json TEXT NOT NULL, signature TEXT NOT NULL, open_tx TEXT NOT NULL UNIQUE,
-      start_block INTEGER NOT NULL, start_mark TEXT NOT NULL, start_ts INTEGER NOT NULL, end_ts INTEGER NOT NULL,
-      status TEXT NOT NULL DEFAULT 'live', end_block INTEGER, end_mark TEXT, settled_ts INTEGER, winner TEXT, parent_id TEXT
-    );
-    CREATE TABLE IF NOT EXISTS joins (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, pit_id TEXT NOT NULL REFERENCES pits(id), wallet TEXT NOT NULL, side TEXT NOT NULL,
-      qty TEXT NOT NULL, entry TEXT NOT NULL, notional TEXT NOT NULL, tx_hash TEXT NOT NULL UNIQUE, block_number INTEGER NOT NULL,
-      ts INTEGER NOT NULL, close_tx TEXT, final_pnl TEXT, final_roc_bps REAL
-    );
-    CREATE INDEX IF NOT EXISTS joins_pit ON joins(pit_id);
-    CREATE INDEX IF NOT EXISTS pits_status ON pits(status, end_ts);
-  `);
-  return db;
+async function db(): Promise<D1Database> {
+  const { env } = await getCloudflareContext({ async: true });
+  const d1 = (env as { DB?: D1Database }).DB;
+  if (!d1) throw new Error("D1 binding `DB` is missing — check wrangler.jsonc and run `npm run db:migrate:local`.");
+  return d1;
 }
 
 export const q = {
-  insertPit(p: Omit<PitRow, "status" | "end_block" | "end_mark" | "settled_ts" | "winner">) {
-    getDb()
+  async insertPit(p: Omit<PitRow, "status" | "end_block" | "end_mark" | "settled_ts" | "winner">) {
+    const d = await db();
+    await d
       .prepare(
         `INSERT INTO pits (id, creator, market, pool, margin_bank, base_decimals, tick_size, lot_size, min_quantity, side, duration_min, cap_usd, thesis, intent_json, signature, open_tx, start_block, start_mark, start_ts, end_ts, parent_id)
-         VALUES (@id, @creator, @market, @pool, @margin_bank, @base_decimals, @tick_size, @lot_size, @min_quantity, @side, @duration_min, @cap_usd, @thesis, @intent_json, @signature, @open_tx, @start_block, @start_mark, @start_ts, @end_ts, @parent_id)`,
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)`,
       )
-      .run(p);
+      .bind(p.id, p.creator, p.market, p.pool, p.margin_bank, p.base_decimals, p.tick_size, p.lot_size, p.min_quantity, p.side, p.duration_min, p.cap_usd, p.thesis, p.intent_json, p.signature, p.open_tx, p.start_block, p.start_mark, p.start_ts, p.end_ts, p.parent_id)
+      .run();
   },
-  getPit(id: string) {
-    return getDb().prepare("SELECT * FROM pits WHERE id = ?").get(id) as PitRow | undefined;
+  async getPit(id: string) {
+    return (await (await db()).prepare("SELECT * FROM pits WHERE id = ?1").bind(id).first<PitRow>()) ?? undefined;
   },
-  pitByTx(tx: string) {
-    return getDb().prepare("SELECT * FROM pits WHERE open_tx = ?").get(tx) as PitRow | undefined;
+  async pitByTx(tx: string) {
+    return (await (await db()).prepare("SELECT * FROM pits WHERE open_tx = ?1").bind(tx).first<PitRow>()) ?? undefined;
   },
-  livePits() {
-    return getDb().prepare("SELECT * FROM pits WHERE status = 'live' ORDER BY end_ts ASC").all() as PitRow[];
+  async livePits() {
+    return (await (await db()).prepare("SELECT * FROM pits WHERE status = 'live' ORDER BY end_ts ASC").all<PitRow>()).results;
   },
-  settledPits(limit = 12) {
-    return getDb().prepare("SELECT * FROM pits WHERE status = 'settled' ORDER BY settled_ts DESC LIMIT ?").all(limit) as PitRow[];
+  async settledPits(limit = 12) {
+    return (await (await db()).prepare("SELECT * FROM pits WHERE status = 'settled' ORDER BY settled_ts DESC LIMIT ?1").bind(limit).all<PitRow>()).results;
   },
-  joins(pitId: string) {
-    return getDb().prepare("SELECT * FROM joins WHERE pit_id = ? ORDER BY id ASC").all(pitId) as JoinRow[];
+  async joins(pitId: string) {
+    return (await (await db()).prepare("SELECT * FROM joins WHERE pit_id = ?1 ORDER BY id ASC").bind(pitId).all<JoinRow>()).results;
   },
-  joinByTx(tx: string) {
-    return getDb().prepare("SELECT * FROM joins WHERE tx_hash = ?").get(tx) as JoinRow | undefined;
+  async joinByTx(tx: string) {
+    return (await (await db()).prepare("SELECT * FROM joins WHERE tx_hash = ?1").bind(tx).first<JoinRow>()) ?? undefined;
   },
-  insertJoin(j: Omit<JoinRow, "id" | "close_tx" | "final_pnl" | "final_roc_bps">) {
-    getDb()
-      .prepare(
-        `INSERT INTO joins (pit_id, wallet, side, qty, entry, notional, tx_hash, block_number, ts)
-         VALUES (@pit_id, @wallet, @side, @qty, @entry, @notional, @tx_hash, @block_number, @ts)`,
-      )
-      .run(j);
+  async insertJoin(j: Omit<JoinRow, "id" | "close_tx" | "final_pnl" | "final_roc_bps">) {
+    await (await db())
+      .prepare(`INSERT INTO joins (pit_id, wallet, side, qty, entry, notional, tx_hash, block_number, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`)
+      .bind(j.pit_id, j.wallet, j.side, j.qty, j.entry, j.notional, j.tx_hash, j.block_number, j.ts)
+      .run();
   },
-  settlePit(id: string, endBlock: number, endMark: string, winner: string | null, results: { id: number; pnl: string; roc: number }[]) {
-    const d = getDb();
-    const tx = d.transaction(() => {
-      d.prepare("UPDATE pits SET status='settled', end_block=?, end_mark=?, settled_ts=?, winner=? WHERE id=? AND status='live'").run(
-        endBlock, endMark, Math.floor(Date.now() / 1000), winner, id,
-      );
-      const u = d.prepare("UPDATE joins SET final_pnl=?, final_roc_bps=? WHERE id=?");
-      for (const r of results) u.run(r.pnl, r.roc, r.id);
-    });
-    tx();
+  async settlePit(id: string, endBlock: number, endMark: string, winner: string | null, results: { id: number; pnl: string; roc: number }[]) {
+    const d = await db();
+    const stmts = [
+      d.prepare("UPDATE pits SET status='settled', end_block=?1, end_mark=?2, settled_ts=?3, winner=?4 WHERE id=?5 AND status='live'").bind(endBlock, endMark, Math.floor(Date.now() / 1000), winner, id),
+      ...results.map((r) => d.prepare("UPDATE joins SET final_pnl=?1, final_roc_bps=?2 WHERE id=?3").bind(r.pnl, r.roc, r.id)),
+    ];
+    await d.batch(stmts);
   },
-  setCloseTx(joinId: number, tx: string) {
-    getDb().prepare("UPDATE joins SET close_tx=? WHERE id=?").run(tx, joinId);
+  async setCloseTx(joinId: number, tx: string) {
+    await (await db()).prepare("UPDATE joins SET close_tx=?1 WHERE id=?2").bind(tx, joinId).run();
   },
-  leaderboard(limit = 10) {
-    return getDb()
-      .prepare(
-        `SELECT j.wallet, j.side, j.final_roc_bps, j.final_pnl, p.market, p.id AS pit_id, p.cap_usd
-         FROM joins j JOIN pits p ON p.id = j.pit_id
-         WHERE p.status = 'settled' AND j.final_roc_bps IS NOT NULL
-         ORDER BY j.final_roc_bps DESC LIMIT ?`,
-      )
-      .all(limit) as { wallet: string; side: string; final_roc_bps: number; final_pnl: string; market: string; pit_id: string; cap_usd: number }[];
+  async leaderboard(limit = 10) {
+    return (
+      await (await db())
+        .prepare(
+          `SELECT j.wallet, j.side, j.final_roc_bps, j.final_pnl, p.market, p.id AS pit_id, p.cap_usd
+           FROM joins j JOIN pits p ON p.id = j.pit_id
+           WHERE p.status = 'settled' AND j.final_roc_bps IS NOT NULL
+           ORDER BY j.final_roc_bps DESC LIMIT ?1`,
+        )
+        .bind(limit)
+        .all<{ wallet: string; side: string; final_roc_bps: number; final_pnl: string; market: string; pit_id: string; cap_usd: number }>()
+    ).results;
   },
 };

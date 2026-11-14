@@ -9,7 +9,7 @@ A live card scores the crowd block-by-block via Somnia Reactivity; at the bell t
 ranked by **return-on-cap** (session PnL ÷ the pit's per-trader cap), so conviction wins, not size.
 The result renders as a shareable OG card with a one-tap Rematch.
 
-- Live demo: _(Vercel URL goes here)_
+- Live demo: _(Cloudflare Workers URL goes here)_
 - Screenshots: [`docs/settled-pit.png`](./docs/settled-pit.png) · [`docs/og-settled.png`](./docs/og-settled.png) · [`docs/home.png`](./docs/home.png)
 - Evidence of real orders: [EVIDENCE.md](./EVIDENCE.md)
 - License: [MIT](./LICENSE)
@@ -48,14 +48,15 @@ Env vars (`.env.example`):
 | `NEXT_PUBLIC_INDEXER` | dreamDEX Hideki GraphQL indexer (market rows). |
 | `NEXT_PUBLIC_APP_URL` | Public URL used in share links / OG images. |
 | `NEXT_PUBLIC_WC_PROJECT_ID` | WalletConnect project id for RainbowKit (optional for injected wallets). |
-| `OPENPIT_DB` | SQLite file for pit metadata (default `./data/openpit.db`). |
 | `SMOKE_PRIVATE_KEY`, `SMOKE_PRIVATE_KEY_2` | **Scripts only.** Test keys for `npm run smoke` / `npm run e2e`. Never used by the app, never committed. |
 
 Scripts:
 
 | command | what it does |
 | --- | --- |
-| `npm run dev` / `build` / `start` | Next.js app |
+| `npm run dev` | Next.js dev server with a local D1 binding |
+| `npm run preview` / `deploy` | Build the Worker with OpenNext; serve it locally or deploy it |
+| `npm run db:migrate:local` / `db:migrate` | Apply the D1 schema locally or to the remote database |
 | `npm run smoke` | Step 0: connects, lists markets, claims paper USDso if eligible, places a tiny IOC on BTC (fallback ETH), closes it, appends tx hashes to `EVIDENCE.md` |
 | `npm run e2e` | Full run against a running server: create pit → second wallet fades → bell → settle → both close. Appends everything to `EVIDENCE.md` |
 | `npm run balances` | STT balance of the two script wallets |
@@ -70,10 +71,31 @@ If the claim reverts (it did for our fresh wallets, see EVIDENCE.md) or you got 
 > Sandbox note: the `NODE_USE_ENV_PROXY=1 … --import ./scripts/proxy-preload.mjs` prefix in the script commands only matters behind an
 > egress proxy; it is a no-op otherwise.
 
-### Deploy on Vercel
+### Deploy on Cloudflare Workers
 
-`vercel` with the same env vars. SQLite lives on the function filesystem, which is ephemeral on Vercel — point `OPENPIT_DB` at
-`/tmp/openpit.db` for a demo, or swap `src/lib/db.ts` for a hosted store (Turso/libSQL is a drop-in). Everything else is stateless.
+OpenPit runs on Cloudflare Workers through [OpenNext](https://opennext.js.org/cloudflare). Pit metadata lives in **D1**
+(SQLite), bound as `DB` in `wrangler.jsonc`; the schema is `migrations/0001_init.sql`.
+
+```bash
+npx wrangler login
+```
+
+```bash
+npx wrangler d1 create openpit
+```
+
+Paste the printed `database_id` into `wrangler.jsonc`, set `NEXT_PUBLIC_APP_URL` there to your Workers URL, then:
+
+```bash
+npm run db:migrate
+```
+
+```bash
+npm run deploy
+```
+
+Local development uses a local D1 copy: run `npm run db:migrate:local` once, then `npm run dev`.
+`npm run preview` builds the Worker and serves it with `wrangler dev`.
 
 ## Architecture
 
@@ -97,7 +119,7 @@ If the claim reverts (it did for our fresh wallets, see EVIDENCE.md) or you got 
  │ POST /api/pits/:id/join   verify tx      │                                        │
  │ POST /api/pits/:id/settle freeze mark ───┼── tryGetMarkPrice @ end block ─────────┘
  │ GET  /api/og/:id      result card (ImageResponse)                                  │
- │ SQLite (better-sqlite3): pits, joins     │
+ │ Cloudflare D1: pits, joins     │
  └──────────────────────────────────────────┘
 ```
 
@@ -156,4 +178,4 @@ not used yet — see future work.
 - Session PnL is price-only on the recorded join size; funding over the window and positions changed outside the app
   are not included in the score (the position reads shown live are real, the score uses the recorded join).
 - Settlement is triggered by the first page viewer or the `e2e` script after the bell; it is idempotent.
-- SQLite is file-local; see the Vercel note.
+- The bell is settled by the first viewer (or the e2e script) after the end time; a Cron Trigger could do it unattended.

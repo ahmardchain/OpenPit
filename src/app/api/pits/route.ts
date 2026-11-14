@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
-import { randomBytes } from "node:crypto";
 import type { Address, Hash, Hex } from "viem";
 import { q } from "@/lib/db";
 import { verifyIntent, type PitIntent } from "@/lib/intent";
-import { toView } from "@/lib/pit-view";
-import { verifyOrderTx } from "@/lib/server-chain";
+import { loadPit, toView, withJoins } from "@/lib/pit-view";
+import { serverClient, verifyOrderTx } from "@/lib/server-chain";
 import { CHAIN_ID } from "@/lib/chain";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const live = q.livePits().map((p) => toView(p, q.joins(p.id)));
-  const settled = q.settledPits().map((p) => toView(p, q.joins(p.id)));
-  return NextResponse.json({ live, settled, leaderboard: q.leaderboard() });
+  const [live, settled, leaderboard] = await Promise.all([q.livePits().then(withJoins), q.settledPits().then(withJoins), q.leaderboard()]);
+  return NextResponse.json({ live, settled, leaderboard });
 }
 
 interface CreateBody {
@@ -33,7 +31,7 @@ export async function POST(req: Request) {
   if (!(intent.capUsd >= 1 && intent.capUsd <= 100_000)) return NextResponse.json({ error: "cap must be 1–100000 USDso" }, { status: 400 });
   if (intent.thesis.length > 140) return NextResponse.json({ error: "thesis max 140 chars" }, { status: 400 });
   if (!(await verifyIntent(intent, signature))) return NextResponse.json({ error: "intent signature does not verify" }, { status: 400 });
-  if (q.pitByTx(openTx)) return NextResponse.json({ error: "that opening tx already backs a pit" }, { status: 409 });
+  if (await q.pitByTx(openTx)) return NextResponse.json({ error: "that opening tx already backs a pit" }, { status: 409 });
 
   let v;
   try {
@@ -45,15 +43,15 @@ export async function POST(req: Request) {
   if (v.newSize !== null && (intent.side === "long" ? v.newSize <= 0n : v.newSize >= 0n))
     return NextResponse.json({ error: "opening order direction does not match the declared side" }, { status: 400 });
 
-  const block = await (await import("@/lib/server-chain")).serverClient.getBlock({ blockNumber: BigInt(v.blockNumber) });
+  const block = await serverClient.getBlock({ blockNumber: BigInt(v.blockNumber) });
   const startTs = Number(block.timestamp);
-  const id = randomBytes(5).toString("hex");
+  const id = Array.from(crypto.getRandomValues(new Uint8Array(5)), (b) => b.toString(16).padStart(2, "0")).join("");
   const capRaw = BigInt(Math.round(intent.capUsd * 1e6)) * 10n ** 12n;
   const qty = v.filledQty;
   const entry = v.avgFill;
   const notional = (qty * entry) / 10n ** BigInt(market.baseDecimals);
 
-  q.insertPit({
+  await q.insertPit({
     id,
     creator: intent.creator,
     market: intent.market,
@@ -77,7 +75,7 @@ export async function POST(req: Request) {
     parent_id: body.parentId ?? null,
   });
   // The creator is the first participant.
-  q.insertJoin({
+  await q.insertJoin({
     pit_id: id,
     wallet: intent.creator,
     side: intent.side,
@@ -89,5 +87,5 @@ export async function POST(req: Request) {
     ts: startTs,
   });
   void capRaw;
-  return NextResponse.json({ id, pit: toView(q.getPit(id)!, q.joins(id)) });
+  return NextResponse.json({ id, pit: await loadPit(id) });
 }

@@ -37,7 +37,7 @@ function NewPitForm() {
 
   useEffect(() => {
     fetch("/api/markets")
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<{ markets: PitMarket[] }>)
       .then((j) => setMarkets(j.markets))
       .catch((e) => setApiError(String(e)));
   }, []);
@@ -82,7 +82,7 @@ function NewPitForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ intent, signature, openTx: hash, parentId, market: { marginBank: market.marginBank, baseDecimals: market.baseDecimals, tickSize: market.tickSize, lotSize: market.lotSize, minQuantity: market.minQuantity } }),
       });
-      const j = await res.json();
+      const j = (await res.json()) as { id?: string; error?: string };
       if (!res.ok) throw new Error(j.error ?? "server rejected the pit");
       setStep("done");
       router.push(`/pit/${j.id}`);

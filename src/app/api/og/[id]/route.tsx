@@ -1,6 +1,5 @@
 import { ImageResponse } from "next/og";
-import { q } from "@/lib/db";
-import { toView } from "@/lib/pit-view";
+import { loadPit } from "@/lib/pit-view";
 import { fmtPct, fmtUsd, returnOnCapBps, sessionPnl } from "@/lib/scoring";
 import { short } from "@/lib/chain";
 import { readMark } from "@/lib/server-chain";
@@ -10,9 +9,8 @@ export const dynamic = "force-dynamic";
 /** Shareable result card: live (mark + crowd split) or settled (winner + frozen mark). All numbers from the DB and chain. */
 export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const row = q.getPit(id);
-  if (!row) return new Response("not found", { status: 404 });
-  const pit = toView(row, q.joins(id));
+  const pit = await loadPit(id);
+  if (!pit) return new Response("not found", { status: 404 });
   const capRaw = BigInt(Math.round(pit.capUsd * 1e6)) * 10n ** 12n;
   let mark: bigint | null = pit.endMark ? BigInt(pit.endMark) : null;
   if (!mark) {
@@ -34,7 +32,14 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
     (
       <div style={{ width: 1200, height: 630, display: "flex", flexDirection: "column", background: "#0e0d0b", color: "#f3efe8", padding: 56, fontFamily: "sans-serif" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ display: "flex", width: 36, height: 36, borderRadius: 10, background: "#f5a524" }} />
+          <svg viewBox="0 0 64 64" width={40} height={40}>
+            <rect width="64" height="64" rx="16" fill="#f5a524" />
+            <circle cx="32" cy="34" r="17" fill="none" stroke="#1a1206" strokeWidth="5" />
+            <rect x="28.5" y="8" width="7" height="12" rx="2" fill="#1a1206" />
+            <path d="M32 24 L32 44" stroke="#1a1206" strokeWidth="5" strokeLinecap="round" />
+            <path d="M23 40 L32 24" stroke="#1a1206" strokeWidth="5" strokeLinecap="round" />
+            <path d="M41 40 L32 24" stroke="#1a1206" strokeWidth="5" strokeLinecap="round" />
+          </svg>
           <div style={{ display: "flex", fontSize: 34, fontWeight: 800 }}>OpenPit</div>
           <div style={{ display: "flex", marginLeft: "auto", fontSize: 24, padding: "6px 16px", borderRadius: 999, background: settled ? "#27272a" : "#f59e0b22", color: settled ? "#d4d4d8" : "#fcd34d" }}>{settled ? "SETTLED" : "● LIVE"}</div>
         </div>
