@@ -22,13 +22,16 @@ export async function POST(_: Request, ctx: { params: Promise<{ id: string }> })
   const headBlk = await serverClient.getBlock({ blockNumber: head });
   if (Number(headBlk.timestamp) < pit.end_ts) return NextResponse.json({ error: "the bell has not rung yet" }, { status: 409 });
 
-  // Walk back to the earliest block whose timestamp >= end_ts (Hideki blocks are sub-second; bound the walk).
-  let endBlock = head;
-  for (let i = 0; i < 400; i++) {
-    const prev = await serverClient.getBlock({ blockNumber: endBlock - 1n });
-    if (Number(prev.timestamp) < pit.end_ts) break;
-    endBlock = endBlock - 1n;
+  // Binary-search the earliest block whose timestamp >= end_ts between the pit's start block and head (~log2 RPC reads).
+  let lo = BigInt(pit.start_block);
+  let hi = head;
+  while (lo < hi) {
+    const mid = (lo + hi) / 2n;
+    const b = await serverClient.getBlock({ blockNumber: mid });
+    if (Number(b.timestamp) >= pit.end_ts) hi = mid;
+    else lo = mid + 1n;
   }
+  const endBlock = lo;
   let mark = await readMark(pit.pool as Address, endBlock);
   if (!mark.ok) mark = await readMark(pit.pool as Address); // stale at that exact block: fall back to head, still recorded
   if (!mark.ok) return NextResponse.json({ error: "mark price unavailable; try again shortly" }, { status: 503 });

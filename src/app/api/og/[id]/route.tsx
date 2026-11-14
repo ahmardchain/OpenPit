@@ -52,7 +52,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ id: string }> }) 
         <div style={{ display: "flex", alignItems: "center", marginTop: 28, padding: "18px 24px", borderRadius: 18, background: "#ffffff0d", fontSize: 30 }}>
           {top ? (
             <>
-              <span>{settled ? "🏆 Winner" : "Leading"}</span>
+              <span>{settled ? "Winner" : "Leading"}</span>
               <span style={{ marginLeft: 16, fontFamily: "monospace" }}>{short(top.wallet)}</span>
               <span style={{ marginLeft: 16, color: top.side === pit.side ? "#6ee7b7" : "#fda4af" }}>{top.side === pit.side ? top.side.toUpperCase() : "FADE"}</span>
               <span style={{ marginLeft: "auto", fontWeight: 800, color: top.roc >= 0 ? "#6ee7b7" : "#fda4af" }}>{`${fmtPct(top.roc)} return on cap`}</span>
