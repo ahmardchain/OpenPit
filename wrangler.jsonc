@@ -15,5 +15,16 @@
       "database_id": "cbca1d12-0c5e-4007-a866-107a511af7c5",
       "migrations_dir": "migrations"
     }
-  ]
+  ],
+  // Branch previews (`wrangler preview`) must not share the production database.
+  // `openpit-preview` is empty until the first request; the app creates its tables then.
+  "previews": {
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "openpit-preview",
+        "database_id": "23707221-d29e-49fb-b81c-7de777954e7b"
+      }
+    ]
+  }
 }

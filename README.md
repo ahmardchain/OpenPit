@@ -83,7 +83,7 @@ OpenPit runs on Cloudflare Workers through [OpenNext](https://opennext.js.org/cl
 | Build command | `npm run build` (runs `opennextjs-cloudflare build`, which runs `next build` itself) |
 | Deploy command | `npx wrangler deploy` |
 
-The app creates tables on first use when they are missing. `CREATE TABLE IF NOT EXISTS` does not alter a table that already exists, so `src/lib/db.ts` adds a missing `mode` column and then checks the rest of the shape (`open_tx` and `tx_hash` must be nullable). If that check fails it throws a clear error and **does not drop or rebuild tables**. Share links use the request's own host; set `NEXT_PUBLIC_APP_URL` only to force a different domain.
+The app creates tables on first use when they are missing. `CREATE TABLE IF NOT EXISTS` does not alter a table that already exists, so `src/lib/db.ts` adds a missing `mode` column and then checks the rest of the shape (`open_tx` and `tx_hash` must be nullable). If that check fails it throws a clear error and **does not drop or rebuild tables**. Branch previews run `wrangler preview` against a separate D1 database, `openpit-preview` (`23707221-d29e-49fb-b81c-7de777954e7b`), so a preview cannot write the production pits. Share links use the request's own host; set `NEXT_PUBLIC_APP_URL` only to force a different domain.
 
 **From your machine:**
 
